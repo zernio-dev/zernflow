@@ -19,7 +19,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useCallback, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Rocket, Loader2, History, Play } from "lucide-react";
+import { ArrowLeft, Save, Rocket, Loader2, History, Play, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Database, FlowStatus, Json } from "@/lib/types/database";
@@ -337,6 +337,30 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           >
             <History className="h-3.5 w-3.5" />
             History
+          </button>
+          <button
+            onClick={() => {
+              const exportData = {
+                name: flowName,
+                description: flow.description || null,
+                nodes,
+                edges,
+                version: flow.version || 1,
+                exportedAt: new Date().toISOString(),
+                source: "zernflow",
+              };
+              const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${flowName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.flow.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export
           </button>
           <button
             onClick={handleSave}

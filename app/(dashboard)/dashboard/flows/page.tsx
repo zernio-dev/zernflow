@@ -2,6 +2,7 @@ import { getWorkspace } from "@/lib/workspace";
 import Link from "next/link";
 import { GitBranch, Sparkles, Plug } from "lucide-react";
 import { CreateFlowButton } from "@/components/create-flow-button";
+import { ImportFlowButton, ExportFlowButton } from "@/components/flow-actions";
 import type { FlowStatus } from "@/lib/types/database";
 
 const statusConfig: Record<FlowStatus, { label: string; classes: string }> = {
@@ -38,7 +39,7 @@ export default async function FlowsPage() {
   const [{ data: flows }, { count: channelCount }] = await Promise.all([
     supabase
       .from("flows")
-      .select("id, name, status, updated_at, nodes")
+      .select("id, name, description, status, updated_at, version, nodes, edges")
       .eq("workspace_id", workspace.id)
       .order("updated_at", { ascending: false }),
     supabase
@@ -59,6 +60,7 @@ export default async function FlowsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <ImportFlowButton />
             <Link
               href="/dashboard/flows/templates"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -115,25 +117,28 @@ export default async function FlowsPage() {
                 href={`/dashboard/flows/${flow.id}`}
                 className="group rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/50"
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <GitBranch className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium group-hover:text-primary transition-colors">
-                        {flow.name}
-                      </h3>
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${status.classes}`}
-                      >
-                        {status.label}
-                      </span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {nodeCount} {nodeCount === 1 ? "node" : "nodes"}
-                    </p>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium group-hover:text-primary transition-colors">
+                          {flow.name}
+                        </h3>
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${status.classes}`}
+                        >
+                          {status.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {nodeCount} {nodeCount === 1 ? "node" : "nodes"}
+                      </p>
+                    </div>
                   </div>
+                  <ExportFlowButton flow={flow} />
                 </div>
                 <p className="mt-4 text-xs text-muted-foreground">
                   Updated {formatDate(flow.updated_at)}
