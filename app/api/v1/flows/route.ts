@@ -6,7 +6,7 @@ export async function GET() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const { data: membership } = await supabase
     .from("workspace_members")
@@ -15,7 +15,7 @@ export async function GET() {
     .limit(1)
     .single();
 
-  if (!membership) return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  if (!membership) return NextResponse.json({ error: "Aucun espace de travail" }, { status: 404 });
 
   const { data: flows, error } = await supabase
     .from("flows")
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const { data: membership } = await supabase
     .from("workspace_members")
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     .limit(1)
     .single();
 
-  if (!membership) return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  if (!membership) return NextResponse.json({ error: "Aucun espace de travail" }, { status: 404 });
 
   const body = await request.json();
 

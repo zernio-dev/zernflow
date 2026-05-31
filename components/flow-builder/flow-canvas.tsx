@@ -19,7 +19,7 @@ import "@xyflow/react/dist/style.css";
 
 import { useCallback, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Rocket, Loader2, History, Play } from "lucide-react";
+import { ArrowLeft, Save, Rocket, Loader2, History, Play, Trash2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Database, FlowStatus, Json } from "@/lib/types/database";
@@ -97,6 +97,8 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [versionPanelOpen, setVersionPanelOpen] = useState(false);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId) || null
@@ -218,7 +220,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
         if (error) {
           console.error("Failed to save flow:", error);
-          setSaveError("Failed to save");
+          setSaveError("Échec de l'enregistrement");
           setTimeout(() => setSaveError(null), 3000);
           return;
         }
@@ -234,6 +236,35 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   );
 
   const handleSave = useCallback(() => saveFlow(), [saveFlow]);
+
+  const handleDeleteFlow = useCallback(async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("flows")
+        .delete()
+        .eq("id", flow.id);
+
+      if (error) {
+        console.error("Failed to delete flow:", error);
+        setSaveError("Impossible de supprimer le flux");
+        setTimeout(() => setSaveError(null), 3000);
+        setDeleteModalOpen(false);
+        return;
+      }
+
+      router.push("/dashboard/flows");
+      router.refresh();
+    } catch (err) {
+      console.error("Delete error:", err);
+      setSaveError("Une erreur est survenue");
+      setTimeout(() => setSaveError(null), 3000);
+    } finally {
+      setDeleting(false);
+      setDeleteModalOpen(false);
+    }
+  }, [flow.id, supabase, router]);
+
   const handlePublish = useCallback(async () => {
     setPublishing(true);
     try {
@@ -245,7 +276,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
       });
       if (!res.ok) {
         console.error("Failed to publish flow");
-        setSaveError("Failed to publish");
+        setSaveError("Impossible de publier");
         setTimeout(() => setSaveError(null), 3000);
         return;
       }
@@ -259,24 +290,77 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !deleting && setDeleteModalOpen(false)}
+          />
+          {/* Modal */}
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl mx-4">
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-base font-semibold">Supprimer ce flux ?</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Vous êtes sur le point de supprimer définitivement{" "}
+                  <span className="font-semibold text-foreground">&ldquo;{flowName}&rdquo;</span>.
+                  Cette action est <span className="font-semibold text-destructive">irréversible</span>{" "}
+                  et tous les blocs, connexions et versions seront perdus.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deleting}
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteFlow}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Suppression...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Supprimer le flux
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Toolbar */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2 border-b border-border bg-card px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => router.push("/dashboard/flows")}
             className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            Retour
           </button>
           <div className="h-5 w-px bg-border" />
           <input
             type="text"
             value={flowName}
             onChange={(e) => setFlowName(e.target.value)}
-            className="w-auto max-w-[200px] border-none bg-transparent text-sm font-semibold outline-none focus:ring-0"
+            className="min-w-0 max-w-[12rem] border-none bg-transparent text-sm font-semibold outline-none focus:ring-0 sm:max-w-[200px]"
             style={{ width: `${Math.max(flowName.length, 8)}ch` }}
-            placeholder="Flow name"
+            placeholder="Nom du flux"
           />
           <span
             className={cn(
@@ -288,10 +372,18 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
                   : "bg-muted text-muted-foreground"
             )}
           >
-            {flow.status}
+            {flow.status === "published" ? "publié" : flow.status === "archived" ? "archivé" : "brouillon"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 lg:justify-end lg:pb-0">
+            <button
+              onClick={() => setDeleteModalOpen(true)}
+              title="Supprimer ce flux"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Supprimer
+            </button>
           {saveError && (
             <span className="text-xs font-medium text-destructive">
               {saveError}
@@ -299,7 +391,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           )}
           {!saveError && lastSaved && (
             <span className="text-xs text-muted-foreground">
-              Saved {lastSaved.toLocaleTimeString()}
+              Enregistré à {lastSaved.toLocaleTimeString("fr-FR")}
             </span>
           )}
           <button
@@ -311,14 +403,14 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
               }
             }}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
               testPanelOpen
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border bg-background hover:bg-accent"
             )}
           >
             <Play className="h-3.5 w-3.5" />
-            Test
+            Tester
           </button>
           <button
             onClick={() => {
@@ -329,46 +421,46 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
               }
             }}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
               versionPanelOpen
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border bg-background hover:bg-accent"
             )}
           >
             <History className="h-3.5 w-3.5" />
-            History
+            Historique
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
           >
             {saving ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Save className="h-3.5 w-3.5" />
             )}
-            Save
+            Enregistrer
           </button>
           <button
             onClick={handlePublish}
             disabled={publishing}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {publishing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Rocket className="h-3.5 w-3.5" />
             )}
-            Publish
+            Publier
           </button>
         </div>
       </div>
 
       {/* Canvas area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         <NodePalette />
-        <div ref={reactFlowWrapper} className="flex-1">
+        <div ref={reactFlowWrapper} className="min-w-0 flex-1">
           <ReactFlow
             nodes={nodes}
             edges={edges}

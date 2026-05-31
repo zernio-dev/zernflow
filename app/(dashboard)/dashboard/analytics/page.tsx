@@ -98,7 +98,7 @@ export default async function AnalyticsPage() {
       const starts = startCounts.get(fid) ?? 0;
       const completions = completionCounts.get(fid) ?? 0;
       const dropOffRate = starts > 0 ? Math.round(((starts - completions) / starts) * 100) : 0;
-      return { id: fid, name: flowNames.get(fid) ?? "Unknown Flow", starts, completions, dropOffRate };
+      return { id: fid, name: flowNames.get(fid) ?? "Flux inconnu", starts, completions, dropOffRate };
     })
     .sort((a, b) => b.starts - a.starts)
     .slice(0, 10);

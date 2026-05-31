@@ -30,24 +30,24 @@ export function AiResponsePanel({ data: rawData, onChange }: AiResponsePanelProp
       {/* System Prompt */}
       <div>
         <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          System Prompt
+          Prompt système
         </label>
         <textarea
           value={data.systemPrompt || ""}
           onChange={(e) => onChange({ ...data, systemPrompt: e.target.value })}
-          placeholder="You are a helpful customer support agent..."
+          placeholder="Vous êtes un agent support client utile..."
           rows={8}
           className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <p className="mt-1 text-[11px] text-muted-foreground/60">
-          Instructions for how the AI should behave and respond.
+          Instructions sur le comportement et les réponses de l'IA.
         </p>
       </div>
 
       {/* Model */}
       <div>
         <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          Model
+          Modèle
         </label>
         <input
           type="text"
@@ -73,7 +73,7 @@ export function AiResponsePanel({ data: rawData, onChange }: AiResponsePanelProp
           ))}
         </div>
         <p className="mt-1.5 text-[11px] text-muted-foreground/60">
-          Any model supported by{" "}
+          Tout modèle pris en charge par{" "}
           <a
             href="https://vercel.com/ai-gateway"
             target="_blank"
@@ -82,7 +82,7 @@ export function AiResponsePanel({ data: rawData, onChange }: AiResponsePanelProp
           >
             Vercel AI Gateway
           </a>
-          . Format: provider/model-name
+          . Format : fournisseur/nom-du-modèle
         </p>
       </div>
 
@@ -102,15 +102,15 @@ export function AiResponsePanel({ data: rawData, onChange }: AiResponsePanelProp
           className="w-full"
         />
         <div className="mt-1 flex justify-between text-[11px] text-muted-foreground/60">
-          <span>Precise</span>
-          <span>Creative</span>
+          <span>Précis</span>
+          <span>Créatif</span>
         </div>
       </div>
 
       {/* Max Tokens */}
       <div>
         <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          Max Tokens
+          Tokens max
         </label>
         <input
           type="number"
@@ -121,14 +121,14 @@ export function AiResponsePanel({ data: rawData, onChange }: AiResponsePanelProp
           className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <p className="mt-1 text-[11px] text-muted-foreground/60">
-          Maximum length of the AI response.
+          Longueur maximale de la réponse IA.
         </p>
       </div>
 
       {/* Context Messages */}
       <div>
         <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-          Context Messages
+          Messages de contexte
         </label>
         <input
           type="number"
@@ -139,7 +139,7 @@ export function AiResponsePanel({ data: rawData, onChange }: AiResponsePanelProp
           className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <p className="mt-1 text-[11px] text-muted-foreground/60">
-          How many past messages to include as context for the AI.
+          Nombre de messages précédents à inclure comme contexte pour l'IA.
         </p>
       </div>
     </div>

@@ -6,24 +6,24 @@ import type { FlowStatus } from "@/lib/types/database";
 
 const statusConfig: Record<FlowStatus, { label: string; classes: string }> = {
   draft: {
-    label: "Draft",
+    label: "Brouillon",
     classes:
       "bg-muted text-muted-foreground",
   },
   published: {
-    label: "Published",
+    label: "Publié",
     classes:
       "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
   },
   archived: {
-    label: "Archived",
+    label: "Archivé",
     classes:
       "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
   },
 };
 
 function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
+  return new Date(dateString).toLocaleDateString("fr-FR", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -51,20 +51,20 @@ export default async function FlowsPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-border px-8 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Flows</h1>
+            <h1 className="text-2xl font-bold">Flux</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Build automated chatbot flows for your channels
+              Créez des flux de chatbot automatisés pour vos canaux
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/dashboard/flows/templates"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             >
               <Sparkles className="h-4 w-4" />
-              Templates
+              Modèles
             </Link>
             <CreateFlowButton />
           </div>
@@ -78,16 +78,16 @@ export default async function FlowsPage() {
             <Plug className="h-5 w-5 text-primary" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium">Connect a channel to get started</p>
+            <p className="text-sm font-medium">Connectez un canal pour commencer</p>
             <p className="text-xs text-muted-foreground">
-              Link your social media accounts so your flows can send and receive messages.
+              Reliez vos comptes sociaux pour que vos flux puissent envoyer et recevoir des messages.
             </p>
           </div>
           <Link
             href="/dashboard/channels"
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
           >
-            Connect
+            Connecter
           </Link>
         </div>
       )}
@@ -95,9 +95,9 @@ export default async function FlowsPage() {
       {!flows || flows.length === 0 ? (
         <div className="mt-12 rounded-xl border border-dashed border-border p-12 text-center">
           <GitBranch className="mx-auto h-10 w-10 text-muted-foreground" />
-          <h2 className="mt-4 text-lg font-semibold">No flows yet</h2>
+          <h2 className="mt-4 text-lg font-semibold">Aucun flux pour le moment</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Create your first flow to start automating conversations.
+            Créez votre premier flux pour automatiser vos conversations.
           </p>
           <div className="mt-4">
             <CreateFlowButton />
@@ -131,12 +131,12 @@ export default async function FlowsPage() {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {nodeCount} {nodeCount === 1 ? "node" : "nodes"}
+                      {nodeCount} {nodeCount === 1 ? "bloc" : "blocs"}
                     </p>
                   </div>
                 </div>
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Updated {formatDate(flow.updated_at)}
+                  Mis à jour le {formatDate(flow.updated_at)}
                 </p>
               </Link>
             );

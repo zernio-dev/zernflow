@@ -17,8 +17,8 @@ export interface ConditionNodeProps {
 const operatorLabels: Record<string, string> = {
   equals: "=",
   not_equals: "!=",
-  contains: "contains",
-  exists: "exists",
+  contains: "contient",
+  exists: "existe",
   gt: ">",
   lt: "<",
 };
@@ -61,19 +61,19 @@ export function ConditionNode({ data, selected }: NodeProps) {
             ))}
             {conditions.length > 2 && (
               <p className="text-xs text-muted-foreground">
-                +{conditions.length - 2} more
+                +{conditions.length - 2} de plus
               </p>
             )}
           </div>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground italic">No conditions set</p>
+          <p className="mt-1 text-xs text-muted-foreground italic">Aucune condition définie</p>
         )}
       </div>
       <div className="flex justify-between border-t border-border px-3 py-1.5">
         <span className="text-[10px] font-medium text-emerald-600">
-          Yes
+          Oui
         </span>
-        <span className="text-[10px] font-medium text-red-500">No</span>
+        <span className="text-[10px] font-medium text-red-500">Non</span>
       </div>
       <Handle
         type="source"

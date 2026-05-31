@@ -8,7 +8,7 @@ export default function ChannelCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"syncing" | "success" | "error">("syncing");
-  const [message, setMessage] = useState("Syncing your new channel...");
+  const [message, setMessage] = useState("Synchronisation de votre nouveau canal...");
 
   useEffect(() => {
     async function syncAndRedirect() {
@@ -16,7 +16,7 @@ export default function ChannelCallbackPage() {
 
       if (!connected) {
         setStatus("error");
-        setMessage("Connection was cancelled or failed.");
+        setMessage("La connexion a été annulée ou a échoué.");
         setTimeout(() => router.push("/dashboard/channels"), 2000);
         return;
       }
@@ -27,7 +27,7 @@ export default function ChannelCallbackPage() {
 
         if (!res.ok || data.error) {
           setStatus("error");
-          setMessage(data.error || "Failed to sync channels.");
+          setMessage(data.error || "Impossible de synchroniser les canaux.");
           setTimeout(() => router.push("/dashboard/channels"), 2000);
           return;
         }
@@ -36,13 +36,13 @@ export default function ChannelCallbackPage() {
         setStatus("success");
         setMessage(
           created > 0
-            ? `${connected} account connected successfully!`
-            : "Account connected! Channel is already synced."
+            ? `Compte ${connected} connecté avec succès !`
+            : "Compte connecté ! Le canal est déjà synchronisé."
         );
         setTimeout(() => router.push("/dashboard/channels"), 1500);
       } catch {
         setStatus("error");
-        setMessage("Failed to sync. You can try syncing manually.");
+        setMessage("Synchronisation impossible. Vous pouvez réessayer manuellement.");
         setTimeout(() => router.push("/dashboard/channels"), 2000);
       }
     }
@@ -63,7 +63,7 @@ export default function ChannelCallbackPage() {
           <XCircle className="h-8 w-8 text-red-500" />
         )}
         <p className="text-sm font-medium text-foreground">{message}</p>
-        <p className="text-xs text-muted-foreground">Redirecting to channels...</p>
+        <p className="text-xs text-muted-foreground">Redirection vers les canaux...</p>
       </div>
     </div>
   );

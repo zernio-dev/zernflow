@@ -30,11 +30,11 @@ export async function POST() {
   const supabase = await createClient();
   const workspace = await getWorkspace(supabase);
   if (!workspace)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   if (!workspace.late_api_key_encrypted) {
     return NextResponse.json(
-      { error: "Zernio API key not configured. Go to Settings first." },
+      { error: "La clé API Zernio n'est pas configurée. Allez d'abord dans les paramètres." },
       { status: 400 }
     );
   }
@@ -123,7 +123,7 @@ export async function POST() {
   } catch (error) {
     console.error("Failed to sync channels:", error);
     return NextResponse.json(
-      { error: `Failed to sync channels: ${error instanceof Error ? error.message : String(error)}` },
+      { error: `Impossible de synchroniser les canaux : ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }

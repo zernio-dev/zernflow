@@ -104,7 +104,7 @@ export function ChannelsView({
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        setSyncMessage(data.error || "Failed to connect");
+        setSyncMessage(data.error || "Connexion impossible");
         setTimeout(() => setSyncMessage(null), 4000);
         return;
       }
@@ -113,7 +113,7 @@ export function ChannelsView({
         window.location.href = data.authUrl;
       }
     } catch {
-      setSyncMessage("Failed to start connection");
+      setSyncMessage("Impossible de démarrer la connexion");
       setTimeout(() => setSyncMessage(null), 4000);
     } finally {
       setConnecting(null);
@@ -130,24 +130,24 @@ export function ChannelsView({
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        setSyncMessage(data.error || "Sync failed");
+        setSyncMessage(data.error || "Synchronisation échouée");
         return;
       }
 
       setChannels(data.channels ?? []);
       const { created, updated, deactivated } = data.synced;
       if (created === 0 && updated === 0 && deactivated === 0) {
-        setSyncMessage("All channels up to date");
+        setSyncMessage("Tous les canaux sont à jour");
       } else {
         const parts = [];
-        if (created > 0) parts.push(`${created} added`);
-        if (updated > 0) parts.push(`${updated} updated`);
-        if (deactivated > 0) parts.push(`${deactivated} deactivated`);
+        if (created > 0) parts.push(`${created} ajouté${created === 1 ? "" : "s"}`);
+        if (updated > 0) parts.push(`${updated} mis à jour`);
+        if (deactivated > 0) parts.push(`${deactivated} désactivé${deactivated === 1 ? "" : "s"}`);
         setSyncMessage(parts.join(", "));
       }
       setTimeout(() => setSyncMessage(null), 4000);
     } catch {
-      setSyncMessage("Failed to sync. Check your connection.");
+      setSyncMessage("Synchronisation impossible. Vérifiez votre connexion.");
     } finally {
       setSyncing(false);
     }
@@ -176,14 +176,14 @@ export function ChannelsView({
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-border px-8 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Channels</h1>
+            <h1 className="text-2xl font-bold">Canaux</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Your connected social media accounts from Zernio
+              Vos comptes sociaux connectés depuis Zernio
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {syncMessage && (
               <span className="text-xs text-muted-foreground">
                 {syncMessage}
@@ -197,7 +197,7 @@ export function ChannelsView({
               <RefreshCw
                 className={cn("h-4 w-4", syncing && "animate-spin")}
               />
-              {syncing ? "Syncing..." : "Sync"}
+              {syncing ? "Synchronisation..." : "Synchroniser"}
             </button>
             <div className="relative" ref={pickerRef}>
               <button
@@ -205,7 +205,7 @@ export function ChannelsView({
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
               >
                 <Plus className="h-4 w-4" />
-                Connect Channel
+                Connecter un canal
               </button>
               {showPlatformPicker && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-border bg-card p-2 shadow-lg">
@@ -237,18 +237,18 @@ export function ChannelsView({
           <div className="flex flex-col items-center justify-center py-20">
             <Plug className="h-10 w-10 text-muted-foreground/40" />
             <p className="mt-3 text-sm font-medium text-muted-foreground">
-              No channels yet
+              Aucun canal pour le moment
             </p>
             <p className="mt-1 max-w-xs text-center text-xs text-muted-foreground/70">
-              Connect a social media account to start building flows and
-              automating conversations.
+              Connectez un compte social pour commencer à créer des flux et
+              automatiser vos conversations.
             </p>
             <button
               onClick={() => setShowPlatformPicker(true)}
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
             >
               <Plus className="h-4 w-4" />
-              Connect Channel
+              Connecter un canal
             </button>
           </div>
         ) : (
@@ -318,8 +318,8 @@ export function ChannelsView({
                       )}
                       title={
                         channel.is_active
-                          ? "Channel is active. Click to deactivate."
-                          : "Channel is inactive. Click to activate."
+                          ? "Le canal est actif. Cliquez pour le désactiver."
+                          : "Le canal est inactif. Cliquez pour l'activer."
                       }
                     >
                       {channel.is_active ? (
@@ -347,11 +347,11 @@ export function ChannelsView({
                             : "bg-muted-foreground"
                         )}
                       />
-                      {channel.is_active ? "Active" : "Inactive"}
+                      {channel.is_active ? "Actif" : "Inactif"}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      Connected{" "}
-                      {new Date(channel.created_at).toLocaleDateString([], {
+                      Connecté le{" "}
+                      {new Date(channel.created_at).toLocaleDateString("fr-FR", {
                         month: "short",
                         day: "numeric",
                       })}
@@ -384,7 +384,7 @@ export function ChannelsView({
                               ? "border-green-200 bg-green-50 text-green-600"
                               : "border-border bg-card text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
                           )}
-                          title={copiedId === channel.id ? "Copied!" : "Copy DM link"}
+                          title={copiedId === channel.id ? "Copié !" : "Copier le lien DM"}
                         >
                           {copiedId === channel.id ? (
                             <Check className="h-3 w-3" />

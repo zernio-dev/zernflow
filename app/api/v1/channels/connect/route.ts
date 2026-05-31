@@ -30,11 +30,11 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const workspace = await getWorkspace(supabase);
   if (!workspace)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   if (!workspace.late_api_key_encrypted) {
     return NextResponse.json(
-      { error: "Zernio API key not configured. Go to Settings first." },
+      { error: "La clé API Zernio n'est pas configurée. Allez d'abord dans les paramètres." },
       { status: 400 }
     );
   }
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   const supported = ["facebook", "instagram", "twitter", "telegram", "bluesky", "reddit"];
   if (!platform || !supported.includes(platform)) {
     return NextResponse.json(
-      { error: `Unsupported platform. Must be one of: ${supported.join(", ")}` },
+      { error: `Plateforme non prise en charge. Elle doit être l'une de celles-ci : ${supported.join(", ")}` },
       { status: 400 }
     );
   }
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const profiles = profilesRes.data?.profiles ?? [];
     if (profiles.length === 0) {
       return NextResponse.json(
-        { error: "No Zernio profiles found. Create one in your Zernio dashboard first." },
+        { error: "Aucun profil Zernio trouvé. Créez-en d'abord un dans votre tableau de bord Zernio." },
         { status: 400 }
       );
     }
@@ -73,14 +73,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (!res.data?.authUrl) {
-      return NextResponse.json({ error: "Failed to get connect URL" }, { status: 500 });
+      return NextResponse.json({ error: "Impossible d'obtenir l'URL de connexion" }, { status: 500 });
     }
 
     return NextResponse.json({ authUrl: res.data.authUrl });
   } catch (error) {
     console.error("Failed to get connect URL:", error);
     return NextResponse.json(
-      { error: `Connection failed: ${error instanceof Error ? error.message : String(error)}` },
+      { error: `Échec de la connexion : ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }

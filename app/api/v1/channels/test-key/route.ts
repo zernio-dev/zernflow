@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
   if (!apiKey || typeof apiKey !== "string") {
     return NextResponse.json(
-      { error: "apiKey is required" },
+      { error: "La clé API est requise" },
       { status: 400 }
     );
   }
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     accounts = (res.data?.accounts ?? []) as typeof accounts;
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : "Invalid API key or connection error";
+      err instanceof Error ? err.message : "Clé API invalide ou erreur de connexion";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     if (saveErr) {
       return NextResponse.json(
-        { error: `Key valid but failed to save: ${saveErr.message}` },
+        { error: `Clé valide, mais impossible de l'enregistrer : ${saveErr.message}` },
         { status: 500 }
       );
     }

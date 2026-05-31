@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Users, Crown, Shield, User, Loader2 } from "lucide-react";
-import { acceptInvite } from "@/lib/actions/team";
 import Link from "next/link";
 
 const roleIcons: Record<string, React.ReactNode> = {
@@ -42,9 +41,14 @@ export function AcceptInviteView({
     setAccepting(true);
     setError(null);
 
-    const result = await acceptInvite(inviteId);
+    const res = await fetch(`/api/v1/team/invites/${inviteId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "accept" }),
+    });
+    const result = await res.json();
 
-    if (result.error) {
+    if (!res.ok || result.error) {
       setError(result.error);
       setAccepting(false);
       return;
@@ -66,9 +70,9 @@ export function AcceptInviteView({
             height={48}
             className="mx-auto mb-3"
           />
-          <h1 className="text-2xl font-bold">You&apos;re invited!</h1>
+          <h1 className="text-2xl font-bold">Vous êtes invité !</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {inviterName} invited you to join
+            {inviterName} vous invite à rejoindre
           </p>
         </div>
 
@@ -80,11 +84,11 @@ export function AcceptInviteView({
           <div className="mt-2 flex items-center justify-center gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize">
               {roleIcons[role] ?? roleIcons.member}
-              {role}
+              {role === "owner" ? "propriétaire" : role === "admin" ? "admin" : "membre"}
             </span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Invited as {email}
+            Invitation envoyée à {email}
           </p>
         </div>
 
@@ -98,10 +102,10 @@ export function AcceptInviteView({
               {accepting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Accepting...
+                  Acceptation...
                 </>
               ) : (
-                "Accept Invite"
+                "Accepter l'invitation"
               )}
             </button>
 
@@ -114,19 +118,19 @@ export function AcceptInviteView({
         {isLoggedIn && emailMismatch && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
             <p className="text-sm text-amber-800">
-              You are logged in as{" "}
-              <span className="font-medium">{currentUserEmail}</span>, but this
-              invite was sent to{" "}
+              Vous êtes connecté avec{" "}
+              <span className="font-medium">{currentUserEmail}</span>, mais cette
+              invitation a été envoyée à{" "}
               <span className="font-medium">{email}</span>.
             </p>
             <p className="mt-1 text-xs text-amber-600">
-              Please log in with the invited email address to accept.
+              Connectez-vous avec l'adresse email invitée pour accepter.
             </p>
             <Link
               href={`/login`}
               className="mt-3 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-50"
             >
-              Switch Account
+              Changer de compte
             </Link>
           </div>
         )}
@@ -137,15 +141,15 @@ export function AcceptInviteView({
               href={`/login?next=/invite/${inviteId}`}
               className="flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
             >
-              Sign in to Accept
+              Se connecter pour accepter
             </Link>
             <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
+              Vous n'avez pas de compte ?{" "}
               <Link
                 href={`/register?next=/invite/${inviteId}`}
                 className="font-medium text-foreground hover:underline"
               >
-                Sign up
+                Créer un compte
               </Link>
             </p>
           </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/types/database";
 
 async function getWorkspaceId(supabase: Awaited<ReturnType<typeof createClient>>) {
   const {
@@ -25,7 +26,7 @@ export async function GET(
   const supabase = await createClient();
   const workspaceId = await getWorkspaceId(supabase);
   if (!workspaceId)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const { data: flow, error } = await supabase
     .from("flows")
@@ -35,7 +36,7 @@ export async function GET(
     .single();
 
   if (error || !flow)
-    return NextResponse.json({ error: "Flow not found" }, { status: 404 });
+    return NextResponse.json({ error: "Flux introuvable" }, { status: 404 });
 
   return NextResponse.json(flow);
 }
@@ -48,11 +49,11 @@ export async function PUT(
   const supabase = await createClient();
   const workspaceId = await getWorkspaceId(supabase);
   if (!workspaceId)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
 
-  const update: Record<string, unknown> = {};
+  const update: Database["public"]["Tables"]["flows"]["Update"] = {};
   if (body.name !== undefined) update.name = body.name;
   if (body.description !== undefined) update.description = body.description;
   if (body.nodes !== undefined) update.nodes = body.nodes;
@@ -81,7 +82,7 @@ export async function DELETE(
   const supabase = await createClient();
   const workspaceId = await getWorkspaceId(supabase);
   if (!workspaceId)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const { error } = await supabase
     .from("flows")

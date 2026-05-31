@@ -1,0 +1,23 @@
+{
+  "Navigation": {
+    "Flows": "Flux",
+    "Inbox": "Boîte de réception",
+    "Contacts": "Contacts",
+    "Broadcasts": "Diffusions",
+    "Sequences": "Séquences",
+    "Analytics": "Analyses",
+    "Growth": "Croissance",
+    "Channels": "Canaux",
+    "Settings": "Paramètres",
+    "LightMode": "Mode clair",
+    "DarkMode": "Mode sombre",
+    "SignOut": "Se déconnecter"
+  },
+  "Settings": {
+    "Title": "Paramètres",
+    "Language": "Langue",
+    "SelectLanguage": "Sélectionner la langue",
+    "English": "Anglais",
+    "French": "Français"
+  }
+}

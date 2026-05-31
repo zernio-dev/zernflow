@@ -24,9 +24,9 @@ function formatDateSeparator(dateStr: string): string {
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  return date.toLocaleDateString([], {
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return "Hier";
+  return date.toLocaleDateString("fr-FR", {
     weekday: "long",
     month: "short",
     day: "numeric",
@@ -73,7 +73,7 @@ function MessageBubble({ message }: { message: Message }) {
           {message.attachments && (
             <div className="mt-1">
               <Paperclip className="inline h-3 w-3" />
-              <span className="ml-1 text-xs opacity-70">Attachment</span>
+              <span className="ml-1 text-xs opacity-70">Pièce jointe</span>
             </div>
           )}
         </div>
@@ -90,9 +90,9 @@ function MessageBubble({ message }: { message: Message }) {
           {!isInbound && message.status !== "sent" && (
             <span className="capitalize">
               {message.status === "delivered"
-                ? "Delivered"
+                ? "Livré"
                 : message.status === "failed"
-                ? "Failed"
+                ? "Échoué"
                 : ""}
             </span>
           )}
@@ -140,7 +140,7 @@ export function MessageThread({
       if (error) throw error;
       router.refresh();
     } catch {
-      alert(`Failed to update conversation status`);
+      alert(`Impossible de mettre à jour le statut de la conversation`);
     } finally {
       setStatusUpdating(null);
     }
@@ -162,13 +162,14 @@ export function MessageThread({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Listen for conversation updates (last_message_at changes when a new message arrives)
-  // and re-fetch messages from Zernio API.
+  // Listen for conversation updates AND new message inserts for real-time updates
   useEffect(() => {
     if (!conversation) return;
 
     const supabase = createClient();
-    const channel = supabase
+
+    // Subscribe to conversation updates (e.g., status changes, last_message_at)
+    const conversationChannel = supabase
       .channel(`conversation-${conversation.id}`)
       .on(
         "postgres_changes",
@@ -197,8 +198,31 @@ export function MessageThread({
       )
       .subscribe();
 
+    // Subscribe to new message inserts for immediate display
+    const messageChannel = supabase
+      .channel(`messages-${conversation.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
+        async (payload) => {
+          const newMessage = payload.new as Message;
+          setMessages((prev) => {
+            // Avoid duplicates (optimistic messages or already received)
+            if (prev.some((m) => m.id === newMessage.id)) return prev;
+            return [...prev, newMessage];
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(conversationChannel);
+      supabase.removeChannel(messageChannel);
     };
   }, [conversation?.id]);
 
@@ -238,7 +262,7 @@ export function MessageThread({
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Send failed (${res.status})`);
+        throw new Error(errorData.error || `Échec de l'envoi (${res.status})`);
       }
 
       const confirmedMessage: Message = await res.json();
@@ -265,10 +289,10 @@ export function MessageThread({
       <div className="flex h-full flex-col items-center justify-center bg-background text-center">
         <MessageSquare className="h-12 w-12 text-muted-foreground/30" />
         <h3 className="mt-4 text-sm font-medium text-muted-foreground">
-          Select a conversation
+          Sélectionnez une conversation
         </h3>
         <p className="mt-1 text-xs text-muted-foreground/70">
-          Choose a conversation from the list to view messages
+          Choisissez une conversation dans la liste pour voir les messages
         </p>
       </div>
     );
@@ -301,7 +325,7 @@ export function MessageThread({
           </div>
           <div>
             <p className="text-sm font-medium">
-              {conversation.contacts?.display_name ?? "Unknown"}
+              {conversation.contacts?.display_name ?? "Inconnu"}
             </p>
           </div>
         </div>
@@ -317,11 +341,11 @@ export function MessageThread({
                 : "bg-muted text-muted-foreground"
             )}
           >
-            {conversation.status}
+            {conversation.status === "open" ? "Ouverte" : conversation.status === "closed" ? "Fermée" : "En attente"}
           </span>
           {conversation.is_automation_paused && (
             <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700">
-              Bot paused
+              Bot en pause
             </span>
           )}
           <div className="flex items-center gap-1">
@@ -329,8 +353,8 @@ export function MessageThread({
               <button
                 onClick={() => updateConversationStatus("closed")}
                 disabled={!!statusUpdating}
-                title="Close conversation"
-                aria-label="Close conversation"
+                title="Fermer la conversation"
+                aria-label="Fermer la conversation"
                 className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
               >
                 {statusUpdating === "closed" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
@@ -340,8 +364,8 @@ export function MessageThread({
               <button
                 onClick={() => updateConversationStatus("snoozed")}
                 disabled={!!statusUpdating}
-                title="Snooze conversation"
-                aria-label="Snooze conversation"
+                title="Mettre la conversation en attente"
+                aria-label="Mettre la conversation en attente"
                 className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
               >
                 {statusUpdating === "snoozed" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
@@ -351,8 +375,8 @@ export function MessageThread({
               <button
                 onClick={() => updateConversationStatus("open")}
                 disabled={!!statusUpdating}
-                title="Reopen conversation"
-                aria-label="Reopen conversation"
+                title="Rouvrir la conversation"
+                aria-label="Rouvrir la conversation"
                 className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
               >
                 {statusUpdating === "open" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
@@ -400,7 +424,7 @@ export function MessageThread({
                   handleSend();
                 }
               }}
-              placeholder="Type a message..."
+              placeholder="Saisissez un message..."
               rows={1}
               className="w-full resize-none rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               style={{ maxHeight: 150 }}
@@ -409,7 +433,7 @@ export function MessageThread({
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            aria-label="Send message"
+            aria-label="Envoyer le message"
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
               input.trim() && !sending

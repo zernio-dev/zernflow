@@ -21,13 +21,13 @@ interface NodeConfigSidebarProps {
 
 const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: string; borderColor: string }> = {
   trigger: {
-    label: "Trigger",
+    label: "Déclencheur",
     icon: Zap,
     color: "bg-emerald-500",
     borderColor: "border-emerald-500",
   },
   sendMessage: {
-    label: "Send Message",
+    label: "Envoyer un message",
     icon: MessageSquare,
     color: "bg-blue-500",
     borderColor: "border-blue-500",
@@ -39,13 +39,13 @@ const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: s
     borderColor: "border-amber-500",
   },
   delay: {
-    label: "Delay",
+    label: "Délai",
     icon: Clock,
     color: "bg-purple-500",
     borderColor: "border-purple-500",
   },
   aiResponse: {
-    label: "AI Response",
+    label: "Réponse IA",
     icon: Sparkles,
     color: "bg-violet-500",
     borderColor: "border-violet-500",
@@ -106,7 +106,7 @@ export function NodeConfigSidebar({ node, onChange, onClose, onDelete }: NodeCon
       default:
         return (
           <p className="text-sm text-muted-foreground">
-            No configuration panel available for this node type.
+            Aucun panneau de configuration disponible pour ce type de bloc.
           </p>
         );
     }
@@ -115,7 +115,7 @@ export function NodeConfigSidebar({ node, onChange, onClose, onDelete }: NodeCon
   return (
     <div
       className={cn(
-        "flex w-80 flex-col border-l bg-card",
+        "fixed inset-y-0 right-0 z-40 flex w-[min(20rem,calc(100vw-1rem))] flex-col border-l bg-card shadow-xl md:relative md:inset-auto md:z-auto md:w-80 md:shadow-none",
         config.borderColor
       )}
       style={{ borderLeftWidth: "3px" }}
@@ -138,7 +138,7 @@ export function NodeConfigSidebar({ node, onChange, onClose, onDelete }: NodeCon
             type="button"
             onClick={() => onDelete(node.id)}
             className="rounded-lg p-1.5 text-muted-foreground/60 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-500"
-            title="Delete node"
+            title="Supprimer le bloc"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -155,7 +155,7 @@ export function NodeConfigSidebar({ node, onChange, onClose, onDelete }: NodeCon
       {/* Node Label */}
       <div className="border-b border-border px-4 py-3">
         <label className="mb-1.5 block text-xs font-semibold text-foreground">
-          Node Name
+          Nom du bloc
         </label>
         <input
           type="text"

@@ -254,7 +254,12 @@ async function executeNode(
   context: FlowExecutionContext,
   sessionId: string
 ): Promise<string | void> {
-  switch (node.type) {
+  const nodeType =
+    node.type === "action" && "actionType" in node.data
+      ? (node.data.actionType as FlowNode["type"])
+      : node.type;
+
+  switch (nodeType) {
     case "sendMessage":
       return executeSendMessage(supabase, node.data as SendMessageNodeData, context);
     case "condition":
@@ -391,6 +396,15 @@ async function executeSendMessage(
         status: "sent",
       });
 
+      // Update conversation metadata so the inbox refreshes in real-time
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: new Date().toISOString(),
+          last_message_preview: text.slice(0, 100),
+        })
+        .eq("id", context.conversationId);
+
       await supabase.from("analytics_events").insert({
         workspace_id: context.workspaceId,
         flow_id: context.flowId,
@@ -406,6 +420,15 @@ async function executeSendMessage(
         sent_by_flow_id: context.flowId,
         status: "failed",
       });
+
+      // Update conversation metadata even for failed messages
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: new Date().toISOString(),
+          last_message_preview: text.slice(0, 100),
+        })
+        .eq("id", context.conversationId);
 
       await supabase.from("analytics_events").insert({
         workspace_id: context.workspaceId,

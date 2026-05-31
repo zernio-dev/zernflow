@@ -22,21 +22,21 @@ interface ConditionPanelProps {
 }
 
 const fieldOptions = [
-  { value: "tag", label: "Tag" },
-  { value: "custom_field", label: "Custom Field" },
-  { value: "platform", label: "Platform" },
+  { value: "tag", label: "Étiquette" },
+  { value: "custom_field", label: "Champ personnalisé" },
+  { value: "platform", label: "Plateforme" },
   { value: "variable", label: "Variable" },
-  { value: "is_subscribed", label: "Is Subscribed" },
-  { value: "last_interaction", label: "Last Interaction" },
+  { value: "is_subscribed", label: "Est abonné" },
+  { value: "last_interaction", label: "Dernière interaction" },
 ];
 
 const operatorOptions = [
-  { value: "equals", label: "equals" },
-  { value: "not_equals", label: "not equals" },
-  { value: "contains", label: "contains" },
-  { value: "exists", label: "exists" },
-  { value: "gt", label: "greater than" },
-  { value: "lt", label: "less than" },
+  { value: "equals", label: "égal à" },
+  { value: "not_equals", label: "différent de" },
+  { value: "contains", label: "contient" },
+  { value: "exists", label: "existe" },
+  { value: "gt", label: "supérieur à" },
+  { value: "lt", label: "inférieur à" },
 ];
 
 export function ConditionPanel({ data: rawData, onChange }: ConditionPanelProps) {
@@ -76,7 +76,7 @@ export function ConditionPanel({ data: rawData, onChange }: ConditionPanelProps)
       {/* Logic Toggle */}
       {conditions.length > 1 && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Match</span>
+          <span className="text-xs text-muted-foreground">Faire correspondre</span>
           <button
             type="button"
             onClick={toggleLogic}
@@ -87,7 +87,7 @@ export function ConditionPanel({ data: rawData, onChange }: ConditionPanelProps)
                 : "bg-blue-100 text-blue-700"
             )}
           >
-            {logic === "and" ? "ALL" : "ANY"}
+            {logic === "and" ? "TOUTES" : "UNE"}
           </button>
           <span className="text-xs text-muted-foreground">conditions</span>
         </div>
@@ -164,7 +164,7 @@ export function ConditionPanel({ data: rawData, onChange }: ConditionPanelProps)
                     onChange={(e) =>
                       updateCondition(index, { ...condition, value: e.target.value })
                     }
-                    placeholder="Value..."
+                    placeholder="Valeur..."
                     className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   />
                 )}
@@ -181,12 +181,12 @@ export function ConditionPanel({ data: rawData, onChange }: ConditionPanelProps)
         className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-amber-400 hover:text-amber-500"
       >
         <Plus className="h-4 w-4" />
-        Add Condition
+        Ajouter une condition
       </button>
 
       {conditions.length === 0 && (
         <p className="text-center text-xs text-muted-foreground">
-          Add conditions to create branching logic. Contacts matching the conditions go to the "Yes" path, others go to "No".
+          Ajoutez des conditions pour créer une logique de branchement. Les contacts qui correspondent vont vers le chemin "Oui", les autres vers "Non".
         </p>
       )}
     </div>

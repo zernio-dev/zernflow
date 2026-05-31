@@ -50,7 +50,7 @@ export default async function SequenceDetailPage({
                   ?.display_name ||
                 (e.contacts as { display_name: string | null; email: string | null } | null)
                   ?.email ||
-                "Unknown",
+                "Inconnu",
               currentStepIndex: e.current_step_index,
               status: e.status as "active" | "completed" | "cancelled",
               enrolledAt: e.enrolled_at,

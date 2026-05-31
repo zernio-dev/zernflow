@@ -172,10 +172,14 @@ export function simulateFlow(
 
     const data = node.data as Record<string, unknown>;
     const label = (data.label as string) || node.type || "Unknown";
+    const effectiveType =
+      node.type === "action"
+        ? ((data.actionType as string) || "action")
+        : node.type;
     let nextHandle: string | undefined;
     let shouldPause = false;
 
-    switch (node.type) {
+    switch (effectiveType) {
       case "sendMessage": {
         const messages = (data.messages as Array<{ type?: string; text?: string; imageUrl?: string }>) || [];
         const texts = messages
@@ -268,12 +272,12 @@ export function simulateFlow(
       case "removeTag": {
         const tagName = (data.tagName as string) || "unknown";
         const actionType =
-          node.type === "addTag"
+          effectiveType === "addTag"
             ? "addTag"
-            : (data.actionType as string) || node.type;
+            : (data.actionType as string) || effectiveType;
         steps.push({
           nodeId: node.id,
-          nodeType: node.type,
+          nodeType: effectiveType,
           nodeLabel: label,
           result: {
             type: "action",
@@ -411,9 +415,9 @@ export function simulateFlow(
       case "unsubscribe": {
         steps.push({
           nodeId: node.id,
-          nodeType: node.type,
+          nodeType: effectiveType,
           nodeLabel: label,
-          result: { type: node.type as "subscribe" | "unsubscribe" },
+          result: { type: effectiveType as "subscribe" | "unsubscribe" },
         });
         break;
       }
@@ -455,11 +459,11 @@ export function simulateFlow(
       default: {
         steps.push({
           nodeId: node.id,
-          nodeType: node.type || "unknown",
+          nodeType: effectiveType || "unknown",
           nodeLabel: label,
           result: {
             type: "error",
-            message: `Unknown node type: ${node.type}`,
+            message: `Unknown node type: ${effectiveType}`,
           },
         });
       }

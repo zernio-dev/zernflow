@@ -38,7 +38,7 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
   const { data: membership } = await supabase
@@ -49,7 +49,7 @@ export async function POST(
     .single();
 
   if (!membership) {
-    return NextResponse.json({ error: "No workspace" }, { status: 404 });
+    return NextResponse.json({ error: "Aucun espace de travail" }, { status: 404 });
   }
 
   // Fetch the broadcast
@@ -61,7 +61,7 @@ export async function POST(
     .single();
 
   if (broadcastErr || !broadcast) {
-    return NextResponse.json({ error: "Broadcast not found" }, { status: 404 });
+    return NextResponse.json({ error: "Diffusion introuvable" }, { status: 404 });
   }
 
   if (broadcast.status !== "draft" && broadcast.status !== "scheduled") {
@@ -89,7 +89,7 @@ export async function POST(
 
   if (!messageContent?.text?.trim()) {
     return NextResponse.json(
-      { error: "Message content is required. Set message_content.text on the broadcast." },
+      { error: "Le contenu du message est requis. Définissez message_content.text sur la diffusion." },
       { status: 400 }
     );
   }
@@ -104,7 +104,7 @@ export async function POST(
 
   if (contactIds.length === 0) {
     return NextResponse.json(
-      { error: "No contacts match the segment filter" },
+      { error: "Aucun contact ne correspond au filtre de segment" },
       { status: 400 }
     );
   }
@@ -117,7 +117,7 @@ export async function POST(
 
   if (!contactChannels?.length) {
     return NextResponse.json(
-      { error: "No contacts have active channel connections" },
+      { error: "Aucun contact n'a de connexion de canal active" },
       { status: 400 }
     );
   }
@@ -155,7 +155,7 @@ export async function POST(
     if (insertErr) {
       console.error("Failed to insert broadcast recipients:", insertErr);
       return NextResponse.json(
-        { error: `Failed to create recipients: ${insertErr.message}` },
+        { error: `Impossible de créer les destinataires : ${insertErr.message}` },
         { status: 500 }
       );
     }
@@ -167,7 +167,7 @@ export async function POST(
 
   if (recipientIds.length === 0) {
     return NextResponse.json(
-      { error: "Failed to create broadcast recipients" },
+      { error: "Impossible de créer les destinataires de la diffusion" },
       { status: 500 }
     );
   }
@@ -256,39 +256,50 @@ async function evaluateRule(
 
   switch (rule.field) {
     case "has_tag": {
-      // Find tag by name
-      const { data: tag } = await supabase
-        .from("tags")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .eq("name", rule.value)
-        .single();
+      // The SegmentBuilder stores tag ID as the value — look up by ID first, then fall back to name
+      let tagId = rule.value;
 
-      if (!tag) return new Set();
+      // Check if the value looks like a UUID; if not, look up by name
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rule.value);
+      if (!isUuid) {
+        const { data: tagByName } = await supabase
+          .from("tags")
+          .select("id")
+          .eq("workspace_id", workspaceId)
+          .eq("name", rule.value)
+          .single();
+        if (!tagByName) return new Set();
+        tagId = tagByName.id;
+      }
 
       const { data: tagged } = await supabase
         .from("contact_tags")
         .select("contact_id")
-        .eq("tag_id", tag.id)
+        .eq("tag_id", tagId)
         .in("contact_id", contactIds);
 
       return new Set((tagged ?? []).map((t) => t.contact_id));
     }
 
     case "missing_tag": {
-      const { data: tag } = await supabase
-        .from("tags")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .eq("name", rule.value)
-        .single();
-
-      if (!tag) return new Set(contactIds); // Tag doesn't exist, all contacts "miss" it
+      // Same logic: support both UUID and name
+      let tagId = rule.value;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rule.value);
+      if (!isUuid) {
+        const { data: tagByName } = await supabase
+          .from("tags")
+          .select("id")
+          .eq("workspace_id", workspaceId)
+          .eq("name", rule.value)
+          .single();
+        if (!tagByName) return new Set(contactIds); // Tag doesn't exist, all contacts "miss" it
+        tagId = tagByName.id;
+      }
 
       const { data: tagged } = await supabase
         .from("contact_tags")
         .select("contact_id")
-        .eq("tag_id", tag.id)
+        .eq("tag_id", tagId)
         .in("contact_id", contactIds);
 
       const taggedSet = new Set((tagged ?? []).map((t) => t.contact_id));
@@ -347,9 +358,9 @@ async function evaluateRule(
     }
 
     case "custom_field": {
-      // rule.value format: "field_slug:actual_value"
-      const [slug, ...rest] = rule.value.split(":");
-      const fieldValue = rest.join(":");
+      // rule.value format: "field_slug::actual_value" (double colon separator from SegmentBuilder)
+      const [slug, ...rest] = rule.value.split("::");
+      const fieldValue = rest.join("::");
 
       const { data: fieldDef } = await supabase
         .from("custom_field_definitions")

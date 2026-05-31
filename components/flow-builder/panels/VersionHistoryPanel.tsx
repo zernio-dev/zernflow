@@ -61,7 +61,7 @@ export function VersionHistoryPanel({
   }
 
   function formatDate(dateString: string) {
-    return new Date(dateString).toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleDateString("fr-FR", {
       month: "short",
       day: "numeric",
       hour: "numeric",
@@ -70,11 +70,11 @@ export function VersionHistoryPanel({
   }
 
   return (
-    <div className="w-80 border-l border-border bg-card overflow-y-auto">
+    <div className="fixed inset-y-0 right-0 z-40 w-[min(20rem,calc(100vw-1rem))] overflow-y-auto border-l border-border bg-card shadow-xl md:relative md:inset-auto md:z-auto md:w-80 md:shadow-none">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <History className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Version History</h3>
+          <h3 className="text-sm font-semibold">Historique des versions</h3>
         </div>
         <button
           onClick={onClose}
@@ -93,10 +93,10 @@ export function VersionHistoryPanel({
           <div className="py-8 text-center">
             <History className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm text-muted-foreground">
-              No versions yet
+              Aucune version pour le moment
             </p>
             <p className="mt-1 text-xs text-muted-foreground/70">
-              Publish your flow to create the first version.
+              Publiez votre flux pour créer la première version.
             </p>
           </div>
         ) : (
@@ -111,7 +111,7 @@ export function VersionHistoryPanel({
                     <span className="text-sm font-medium">v{v.version}</span>
                     {v.version === currentVersion && (
                       <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">
-                        current
+                        actuelle
                       </span>
                     )}
                   </div>
@@ -126,7 +126,7 @@ export function VersionHistoryPanel({
                       ) : (
                         <RotateCcw className="h-3 w-3" />
                       )}
-                      Restore
+                      Restaurer
                     </button>
                   )}
                 </div>
@@ -143,9 +143,9 @@ export function VersionHistoryPanel({
       </div>
       <ConfirmDialog
         open={!!confirmRestore}
-        title="Restore version"
-        message="The current draft will be replaced with this version's nodes and edges."
-        confirmLabel="Restore"
+        title="Restaurer la version"
+        message="Le brouillon actuel sera remplacé par les blocs et connexions de cette version."
+        confirmLabel="Restaurer"
         onConfirm={() => {
           if (confirmRestore) handleRestore(confirmRestore);
           setConfirmRestore(null);

@@ -48,9 +48,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Image src="/logo.png" alt="ZernFlow" width={48} height={48} className="mx-auto mb-3" />
-          <h1 className="text-2xl font-bold">Welcome back</h1>
+          <h1 className="text-2xl font-bold">Bon retour</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Sign in to your account
+            Connectez-vous à votre compte
           </p>
         </div>
 
@@ -78,7 +78,7 @@ export default function LoginPage() {
               htmlFor="password"
               className="block text-sm font-medium mb-1.5"
             >
-              Password
+              Mot de passe
             </label>
             <input
               id="password"
@@ -87,7 +87,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Your password"
+              placeholder="Votre mot de passe"
             />
           </div>
 
@@ -100,7 +100,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Connexion..." : "Se connecter"}
           </button>
         </form>
 
@@ -110,7 +110,7 @@ export default function LoginPage() {
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
+              Ou continuer avec
             </span>
           </div>
         </div>
@@ -126,9 +126,9 @@ export default function LoginPage() {
         </button>
 
         <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
+          Vous n'avez pas de compte ?{" "}
           <Link href="/register" className="font-medium text-foreground hover:underline">
-            Sign up
+            Créer un compte
           </Link>
         </p>
       </div>

@@ -32,35 +32,35 @@ const statusConfig: Record<
   { label: string; icon: React.ElementType; className: string }
 > = {
   draft: {
-    label: "Draft",
+    label: "Brouillon",
     icon: FileEdit,
     className: "bg-muted text-muted-foreground",
   },
   scheduled: {
-    label: "Scheduled",
+    label: "Planifiée",
     icon: Clock,
     className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   },
   sending: {
-    label: "Sending",
+    label: "Envoi",
     icon: Loader2,
     className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
   },
   completed: {
-    label: "Completed",
+    label: "Terminée",
     icon: CheckCircle2,
     className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
   },
   cancelled: {
-    label: "Cancelled",
+    label: "Annulée",
     icon: XCircle,
     className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   },
 };
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Not scheduled";
-  return new Date(dateStr).toLocaleDateString([], {
+  if (!dateStr) return "Non planifiée";
+  return new Date(dateStr).toLocaleDateString("fr-FR", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -143,19 +143,19 @@ export function BroadcastsView({
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-border px-8 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Broadcasts</h1>
+            <h1 className="text-2xl font-bold">Diffusions</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Send messages to multiple contacts at once
+              Envoyez des messages à plusieurs contacts en une fois
             </p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="inline-flex w-fit items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
             <Plus className="h-4 w-4" />
-            Create Broadcast
+            Créer une diffusion
           </button>
         </div>
 
@@ -165,7 +165,7 @@ export function BroadcastsView({
             <div className="flex items-center gap-3">
               <input
                 type="text"
-                placeholder="Broadcast name..."
+                placeholder="Nom de la diffusion..."
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => {
@@ -180,7 +180,7 @@ export function BroadcastsView({
                 disabled={!newName.trim() || creating}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
-                {creating ? "Creating..." : "Create"}
+                {creating ? "Création..." : "Créer"}
               </button>
               <button
                 onClick={() => {
@@ -191,7 +191,7 @@ export function BroadcastsView({
                 }}
                 className="rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent"
               >
-                Cancel
+                Annuler
               </button>
             </div>
 
@@ -208,7 +208,7 @@ export function BroadcastsView({
                 )}
               >
                 <Filter className="h-3.5 w-3.5" />
-                Target specific contacts
+                Cibler des contacts précis
                 <ChevronDown
                   className={cn(
                     "h-3 w-3 transition-transform",
@@ -237,10 +237,10 @@ export function BroadcastsView({
           <div className="flex flex-col items-center justify-center py-20">
             <Radio className="h-10 w-10 text-muted-foreground/40" />
             <p className="mt-3 text-sm font-medium text-muted-foreground">
-              No broadcasts yet
+              Aucune diffusion pour le moment
             </p>
             <p className="mt-1 text-xs text-muted-foreground/70">
-              Create your first broadcast to send messages to your contacts
+              Créez votre première diffusion pour envoyer des messages à vos contacts
             </p>
           </div>
         ) : (
@@ -282,10 +282,10 @@ export function BroadcastsView({
                         <Calendar className="h-3 w-3" />
                         {broadcast.scheduled_for
                           ? formatDate(broadcast.scheduled_for)
-                          : "Not scheduled"}
+                          : "Non planifiée"}
                       </span>
                       <span>
-                        Created {formatDate(broadcast.created_at)}
+                        Créée le {formatDate(broadcast.created_at)}
                       </span>
                     </div>
                   </div>
@@ -295,7 +295,7 @@ export function BroadcastsView({
                     <div className="text-center">
                       <p className="text-lg font-semibold">{total}</p>
                       <p className="text-[10px] uppercase text-muted-foreground">
-                        Recipients
+                        Destinataires
                       </p>
                     </div>
                     <div className="text-center">
@@ -303,7 +303,7 @@ export function BroadcastsView({
                         {broadcast.sent}
                       </p>
                       <p className="text-[10px] uppercase text-muted-foreground">
-                        Sent
+                        Envoyés
                       </p>
                     </div>
                     <div className="text-center">
@@ -311,7 +311,7 @@ export function BroadcastsView({
                         {broadcast.delivered}
                       </p>
                       <p className="text-[10px] uppercase text-muted-foreground">
-                        Delivered
+                        Livrés
                       </p>
                     </div>
                     <div className="text-center">
@@ -319,7 +319,7 @@ export function BroadcastsView({
                         {broadcast.failed}
                       </p>
                       <p className="text-[10px] uppercase text-muted-foreground">
-                        Failed
+                        Échoués
                       </p>
                     </div>
                   </div>
@@ -371,7 +371,7 @@ function BroadcastDetail({
       if (err) throw err;
       if (data) onUpdate(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? err.message : "Impossible d'enregistrer");
     } finally {
       setSaving(false);
     }
@@ -379,7 +379,7 @@ function BroadcastDetail({
 
   async function handleSend() {
     if (!messageText.trim()) {
-      setError("Message cannot be empty");
+      setError("Le message ne peut pas être vide");
       return;
     }
 
@@ -399,10 +399,10 @@ function BroadcastDetail({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to send broadcast");
+        throw new Error(data.error || "Impossible d'envoyer la diffusion");
       }
 
-      setSuccess(`Sending to ${data.totalRecipients} recipients`);
+      setSuccess(`Envoi à ${data.totalRecipients} destinataire${data.totalRecipients === 1 ? "" : "s"}`);
 
       // Update the broadcast locally
       onUpdate({
@@ -412,7 +412,7 @@ function BroadcastDetail({
         message_content: { text: messageText.trim() } as unknown as Json,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send");
+      setError(err instanceof Error ? err.message : "Impossible d'envoyer");
     } finally {
       setSending(false);
     }
@@ -448,7 +448,7 @@ function BroadcastDetail({
               </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Created {formatDate(broadcast.created_at)}
+              Créée le {formatDate(broadcast.created_at)}
             </p>
           </div>
         </div>
@@ -462,19 +462,19 @@ function BroadcastDetail({
             <div className="grid grid-cols-4 gap-4">
               <div className="rounded-lg border border-border bg-card p-4 text-center">
                 <p className="text-2xl font-bold">{broadcast.total_recipients}</p>
-                <p className="text-xs text-muted-foreground">Recipients</p>
+                <p className="text-xs text-muted-foreground">Destinataires</p>
               </div>
               <div className="rounded-lg border border-border bg-card p-4 text-center">
                 <p className="text-2xl font-bold text-green-600">{broadcast.sent}</p>
-                <p className="text-xs text-muted-foreground">Sent</p>
+                <p className="text-xs text-muted-foreground">Envoyés</p>
               </div>
               <div className="rounded-lg border border-border bg-card p-4 text-center">
                 <p className="text-2xl font-bold text-blue-600">{broadcast.delivered}</p>
-                <p className="text-xs text-muted-foreground">Delivered</p>
+                <p className="text-xs text-muted-foreground">Livrés</p>
               </div>
               <div className="rounded-lg border border-border bg-card p-4 text-center">
                 <p className="text-2xl font-bold text-red-600">{broadcast.failed}</p>
-                <p className="text-xs text-muted-foreground">Failed</p>
+                <p className="text-xs text-muted-foreground">Échoués</p>
               </div>
             </div>
           )}
@@ -486,14 +486,14 @@ function BroadcastDetail({
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               disabled={!isDraft}
-              placeholder="Type your broadcast message here..."
+              placeholder="Saisissez le message de diffusion ici..."
               rows={6}
               className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
             />
             {isDraft && (
               <p className="text-xs text-muted-foreground">
-                This message will be sent to all contacts matching your segment
-                filter{broadcast.segment_filter ? "" : " (all subscribed contacts)"}.
+                Ce message sera envoyé à tous les contacts correspondant à votre
+                filtre de segment{broadcast.segment_filter ? "" : " (tous les contacts abonnés)"}.
               </p>
             )}
           </div>
@@ -503,7 +503,7 @@ function BroadcastDetail({
             <div className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Filter className="h-4 w-4 text-muted-foreground" />
-                Segment filter applied
+                Filtre de segment appliqué
               </div>
               <pre className="mt-2 overflow-auto rounded bg-muted p-3 text-xs text-muted-foreground">
                 {JSON.stringify(broadcast.segment_filter, null, 2)}
@@ -538,14 +538,14 @@ function BroadcastDetail({
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                {sending ? "Sending..." : "Send Now"}
+                {sending ? "Envoi..." : "Envoyer maintenant"}
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving || !messageText.trim()}
                 className="inline-flex items-center gap-2 rounded-lg border border-input bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save Draft"}
+                {saving ? "Enregistrement..." : "Enregistrer le brouillon"}
               </button>
             </div>
           )}

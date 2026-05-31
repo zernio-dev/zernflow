@@ -1,6 +1,6 @@
 -- Flow version history: stores a snapshot of nodes/edges on each publish
 create table flow_versions (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   flow_id uuid not null references flows(id) on delete cascade,
   version integer not null,
   nodes jsonb not null,

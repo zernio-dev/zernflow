@@ -37,11 +37,11 @@ export function EnrollSequencePanel({ data, onChange }: EnrollSequencePanelProps
     <div className="space-y-4">
       <div className="rounded-lg border border-border bg-muted p-4">
         <p className="text-sm font-medium text-foreground">
-          Enroll in Sequence
+          Inscrire à une séquence
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          The contact will be enrolled in the selected drip sequence when they
-          reach this step.
+          Le contact sera inscrit à la séquence sélectionnée quand il
+          atteindra cette étape.
         </p>
       </div>
 
@@ -52,11 +52,11 @@ export function EnrollSequencePanel({ data, onChange }: EnrollSequencePanelProps
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Loading sequences...
+            Chargement des séquences...
           </div>
         ) : sequences.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No sequences found. Create one in the Sequences section first.
+            Aucune séquence trouvée. Créez-en une dans la section Séquences.
           </p>
         ) : (
           <select
@@ -64,7 +64,7 @@ export function EnrollSequencePanel({ data, onChange }: EnrollSequencePanelProps
             onChange={(e) => onChange({ ...data, sequenceId: e.target.value })}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="">Select a sequence...</option>
+            <option value="">Sélectionner une séquence...</option>
             {sequences.map((seq) => (
               <option key={seq.id} value={seq.id}>
                 {seq.name} ({seq.status})
@@ -73,7 +73,7 @@ export function EnrollSequencePanel({ data, onChange }: EnrollSequencePanelProps
           </select>
         )}
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Only active sequences will actually enroll contacts at runtime.
+          Seules les séquences actives inscriront réellement les contacts à l'exécution.
         </p>
       </div>
     </div>

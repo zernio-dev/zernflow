@@ -503,6 +503,7 @@ export interface Database {
           created_at?: string;
         };
         Update: {
+          flow_id?: string;
           channel_id?: string | null;
           type?: TriggerType;
           config?: Json;
@@ -829,6 +830,7 @@ export interface Database {
         };
         Update: {
           status?: JobStatus;
+          run_at?: string;
           attempts?: number;
           last_error?: string | null;
         };

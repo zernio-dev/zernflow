@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const { data: membership } = await supabase
     .from("workspace_members")
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     .limit(1)
     .single();
 
-  if (!membership) return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  if (!membership) return NextResponse.json({ error: "Aucun espace de travail" }, { status: 404 });
 
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get("search");

@@ -31,6 +31,16 @@ export function InboxView({
     setSelected(c);
   }, []);
 
+  // Sync selected conversation with updated conversations list
+  useEffect(() => {
+    if (selected) {
+      const updated = conversations.find((c) => c.id === selected.id);
+      if (updated && updated !== selected) {
+        setSelected(updated);
+      }
+    }
+  }, [conversations, selected]);
+
   // Load messages when a conversation is selected
   useEffect(() => {
     if (!selected) {
@@ -65,6 +75,11 @@ export function InboxView({
           .from("conversations")
           .update({ unread_count: 0 })
           .eq("id", selected!.id);
+
+        // Update local state immediately for responsive UI
+        setSelected((prev) =>
+          prev ? { ...prev, unread_count: 0 } : null
+        );
       }
     }
 
@@ -91,10 +106,10 @@ export function InboxView({
             <button
               onClick={() => setShowContactPanel(true)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-              aria-label="Show contact info"
+              aria-label="Afficher les infos du contact"
             >
               <User className="h-3.5 w-3.5" />
-              Contact info
+              Infos du contact
             </button>
           </div>
         )}

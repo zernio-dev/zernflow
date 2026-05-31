@@ -94,3 +94,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  @media (max-width: 640px) {
+    [class~="px-8"] {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+
+    [class~="py-6"] {
+      padding-top: 1rem;
+      padding-bottom: 1rem;
+    }
+
+    [class~="p-8"] {
+      padding: 1rem;
+    }
+
+    [class~="gap-6"] {
+      gap: 1rem;
+    }
+
+    [class~="space-y-8"] > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 1.5rem;
+    }
+  }
+}

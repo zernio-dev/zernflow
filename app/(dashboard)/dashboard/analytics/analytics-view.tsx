@@ -79,7 +79,7 @@ function getDateRange(range: TimeRange): { start: string; end: string } {
 }
 
 function formatShortDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString([], {
+  return new Date(dateStr).toLocaleDateString("fr-FR", {
     month: "short",
     day: "numeric",
   });
@@ -175,7 +175,7 @@ function MessageVolumeChart({
               )}
               {hovered === i && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background shadow-lg pointer-events-none">
-                  <p className="font-medium">{d.sent} sent{d.failed > 0 ? `, ${d.failed} failed` : ""}</p>
+                  <p className="font-medium">{d.sent} envoyé{d.sent === 1 ? "" : "s"}{d.failed > 0 ? `, ${d.failed} échoué${d.failed === 1 ? "" : "s"}` : ""}</p>
                   <p className="text-background/70">{formatShortDate(d.date)}</p>
                 </div>
               )}
@@ -318,7 +318,7 @@ export function AnalyticsView({
           const starts = startCounts.get(fid) ?? 0;
           const completions = completionCounts.get(fid) ?? 0;
           const dropOffRate = starts > 0 ? Math.round(((starts - completions) / starts) * 100) : 0;
-          return { id: fid, name: flowNames.get(fid) ?? "Unknown Flow", starts, completions, dropOffRate };
+          return { id: fid, name: flowNames.get(fid) ?? "Flux inconnu", starts, completions, dropOffRate };
         })
         .sort((a, b) => b.starts - a.starts)
         .slice(0, 10);
@@ -364,36 +364,36 @@ export function AnalyticsView({
   }
 
   const timeRangeOptions: { value: TimeRange; label: string }[] = [
-    { value: "7d", label: "Last 7 days" },
-    { value: "30d", label: "Last 30 days" },
-    { value: "90d", label: "Last 90 days" },
-    { value: "custom", label: "Custom" },
+    { value: "7d", label: "7 derniers jours" },
+    { value: "30d", label: "30 derniers jours" },
+    { value: "90d", label: "90 derniers jours" },
+    { value: "custom", label: "Personnalisé" },
   ];
 
   const statCards = [
     {
-      label: "Total Flows",
+      label: "Flux au total",
       value: stats.totalFlows,
       icon: GitBranch,
       color: "text-blue-600",
       bg: "bg-blue-100",
     },
     {
-      label: "Total Contacts",
+      label: "Contacts au total",
       value: stats.totalContacts,
       icon: Users,
       color: "text-purple-600",
       bg: "bg-purple-100",
     },
     {
-      label: "Messages Sent",
+      label: "Messages envoyés",
       value: stats.messagesSent,
       icon: Send,
       color: "text-green-600",
       bg: "bg-green-100",
     },
     {
-      label: "Messages Failed",
+      label: "Messages échoués",
       value: stats.messagesFailed,
       icon: AlertTriangle,
       color: "text-red-600",
@@ -411,16 +411,16 @@ export function AnalyticsView({
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-border px-8 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Analytics</h1>
+            <h1 className="text-2xl font-bold">Analyses</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Monitor your workspace performance
+              Suivez les performances de votre espace de travail
             </p>
           </div>
 
           {/* Time range selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {timeRangeOptions.map((option) => (
               <button
                 key={option.value}
@@ -440,7 +440,7 @@ export function AnalyticsView({
 
         {/* Custom date range */}
         {timeRange === "custom" && (
-          <div className="mt-4 flex items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <input
@@ -450,7 +450,7 @@ export function AnalyticsView({
                 className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-            <span className="text-sm text-muted-foreground">to</span>
+            <span className="text-sm text-muted-foreground">à</span>
             <input
               type="date"
               value={customEnd}
@@ -462,7 +462,7 @@ export function AnalyticsView({
               disabled={!customStart || !customEnd}
               className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
-              Apply
+              Appliquer
             </button>
           </div>
         )}
@@ -508,9 +508,9 @@ export function AnalyticsView({
               {/* Contact growth */}
               <div className="rounded-xl border border-border bg-card p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold">Contact Growth</h3>
+                  <h3 className="text-sm font-semibold">Croissance des contacts</h3>
                   <span className="text-xs text-muted-foreground">
-                    New contacts per day
+                    Nouveaux contacts par jour
                   </span>
                 </div>
                 {contactGrowth.length > 0 ? (
@@ -532,7 +532,7 @@ export function AnalyticsView({
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground py-8 text-center">
-                    No data for this period
+                    Aucune donnée pour cette période
                   </p>
                 )}
               </div>
@@ -540,15 +540,15 @@ export function AnalyticsView({
               {/* Message volume */}
               <div className="rounded-xl border border-border bg-card p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold">Message Volume</h3>
+                  <h3 className="text-sm font-semibold">Volume de messages</h3>
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                      Sent
+                      Envoyés
                     </span>
                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-                      Failed
+                      Échoués
                     </span>
                   </div>
                 </div>
@@ -556,7 +556,7 @@ export function AnalyticsView({
                   <MessageVolumeChart data={messageVolume} maxVal={maxMessageVolume} />
                 ) : (
                   <p className="text-sm text-muted-foreground py-8 text-center">
-                    No data for this period
+                    Aucune donnée pour cette période
                   </p>
                 )}
               </div>
@@ -565,13 +565,13 @@ export function AnalyticsView({
             {/* Flow performance table */}
             <div className="rounded-xl border border-border bg-card">
               <div className="border-b border-border px-6 py-4">
-                <h3 className="text-sm font-semibold">Flow Performance</h3>
+                <h3 className="text-sm font-semibold">Performance des flux</h3>
               </div>
               {flowPerformance.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <GitBranch className="h-8 w-8 text-muted-foreground/40" />
                   <p className="mt-2 text-sm text-muted-foreground">
-                    No flow activity in this period
+                    Aucune activité de flux sur cette période
                   </p>
                 </div>
               ) : (
@@ -579,16 +579,16 @@ export function AnalyticsView({
                   <thead>
                     <tr className="border-b border-border bg-muted/50 text-left">
                       <th className="px-6 py-3 text-xs font-medium uppercase text-muted-foreground">
-                        Flow Name
+                        Nom du flux
                       </th>
                       <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground text-right">
-                        Starts
+                        Démarrages
                       </th>
                       <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground text-right">
-                        Completions
+                        Complétions
                       </th>
                       <th className="px-6 py-3 text-xs font-medium uppercase text-muted-foreground text-right">
-                        Drop-off Rate
+                        Taux d'abandon
                       </th>
                     </tr>
                   </thead>

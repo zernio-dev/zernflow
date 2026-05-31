@@ -12,7 +12,7 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   // Verify user has access
   const { data: membership } = await supabase
@@ -23,7 +23,7 @@ export async function POST(
     .single();
 
   if (!membership)
-    return NextResponse.json({ error: "No workspace" }, { status: 404 });
+    return NextResponse.json({ error: "Aucun espace de travail" }, { status: 404 });
 
   // Get the version
   const { data: version, error: vErr } = await supabase
@@ -34,7 +34,7 @@ export async function POST(
     .single();
 
   if (vErr || !version)
-    return NextResponse.json({ error: "Version not found" }, { status: 404 });
+    return NextResponse.json({ error: "Version introuvable" }, { status: 404 });
 
   // Restore: copy nodes/edges/viewport back, set status to draft
   const { error } = await supabase

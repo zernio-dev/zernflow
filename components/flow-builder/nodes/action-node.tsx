@@ -29,6 +29,7 @@ export interface ActionNodeProps {
   paths?: Array<{ name: string; weight: number }>;
   timeout?: number;
   timeoutUnit?: string;
+  text?: string;
 }
 
 const actionConfig: Record<
@@ -37,62 +38,62 @@ const actionConfig: Record<
 > = {
   addTag: {
     icon: Tag,
-    label: "Add Tag",
+    label: "Ajouter une étiquette",
     color: "bg-gray-500",
   },
   removeTag: {
     icon: Tag,
-    label: "Remove Tag",
+    label: "Retirer une étiquette",
     color: "bg-gray-500",
   },
   setCustomField: {
     icon: FileText,
-    label: "Set Field",
+    label: "Définir un champ",
     color: "bg-gray-500",
   },
   httpRequest: {
     icon: Globe,
-    label: "HTTP Request",
+    label: "Requête HTTP",
     color: "bg-gray-500",
   },
   goToFlow: {
     icon: ArrowRightLeft,
-    label: "Go To Flow",
+    label: "Aller au flux",
     color: "bg-gray-500",
   },
   humanTakeover: {
     icon: UserCheck,
-    label: "Human Takeover",
+    label: "Reprise humaine",
     color: "bg-gray-500",
   },
   subscribe: {
     icon: Bell,
-    label: "Subscribe",
+    label: "Abonner",
     color: "bg-gray-500",
   },
   unsubscribe: {
     icon: Bell,
-    label: "Unsubscribe",
+    label: "Désabonner",
     color: "bg-gray-500",
   },
   commentReply: {
     icon: Cog,
-    label: "Comment Reply",
+    label: "Réponse commentaire",
     color: "bg-gray-500",
   },
   privateReply: {
     icon: Cog,
-    label: "Private Reply",
+    label: "Réponse privée",
     color: "bg-gray-500",
   },
   abSplit: {
     icon: Shuffle,
-    label: "A/B Split",
+    label: "Test A/B",
     color: "bg-gray-500",
   },
   smartDelay: {
     icon: Hourglass,
-    label: "Smart Delay",
+    label: "Délai intelligent",
     color: "bg-gray-500",
   },
 };
@@ -103,9 +104,9 @@ function getSummary(nodeData: ActionNodeProps): string | null {
 
   switch (type) {
     case "addTag":
-      return nodeData.tagName ? `Add "${nodeData.tagName}"` : null;
+      return nodeData.tagName ? `Ajouter "${nodeData.tagName}"` : null;
     case "removeTag":
-      return nodeData.tagName ? `Remove "${nodeData.tagName}"` : null;
+      return nodeData.tagName ? `Retirer "${nodeData.tagName}"` : null;
     case "setCustomField":
       return nodeData.fieldSlug
         ? `${nodeData.fieldSlug} = ${nodeData.value || "..."}`
@@ -115,13 +116,16 @@ function getSummary(nodeData: ActionNodeProps): string | null {
         ? `${nodeData.method || "GET"} ${nodeData.url}`
         : null;
     case "goToFlow":
-      return nodeData.flowId ? `Flow: ${nodeData.flowId.slice(0, 8)}...` : null;
+      return nodeData.flowId ? `Flux : ${nodeData.flowId.slice(0, 8)}...` : null;
     case "humanTakeover":
-      return nodeData.message || "Hand off to agent";
+      return nodeData.message || "Transférer à un agent";
     case "subscribe":
-      return "Subscribe contact";
+      return "Abonner le contact";
     case "unsubscribe":
-      return "Unsubscribe contact";
+      return "Désabonner le contact";
+    case "commentReply":
+    case "privateReply":
+      return nodeData.text || null;
     case "abSplit":
       if (nodeData.paths && nodeData.paths.length > 0) {
         return nodeData.paths.map((p) => `${p.name}: ${p.weight}%`).join(", ");
@@ -129,7 +133,7 @@ function getSummary(nodeData: ActionNodeProps): string | null {
       return null;
     case "smartDelay":
       return nodeData.timeout
-        ? `Wait up to ${nodeData.timeout} ${nodeData.timeoutUnit || "minutes"}`
+        ? `Attendre jusqu'à ${nodeData.timeout} ${nodeData.timeoutUnit || "minutes"}`
         : null;
     default:
       return null;
@@ -177,7 +181,7 @@ export function ActionNode({ data, selected }: NodeProps) {
         {summary ? (
           <p className="mt-1 truncate text-xs text-muted-foreground">{summary}</p>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground italic">Not configured</p>
+          <p className="mt-1 text-xs text-muted-foreground italic">Non configuré</p>
         )}
       </div>
       {isAbSplit && paths.length > 0 ? (

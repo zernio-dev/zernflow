@@ -12,7 +12,7 @@ export interface AiResponseNodeProps {
 
 export function AiResponseNode({ data, selected }: NodeProps) {
   const nodeData = data as AiResponseNodeProps;
-  const label = nodeData.label || "AI Response";
+  const label = nodeData.label || "Réponse IA";
   const prompt = nodeData.systemPrompt;
 
   return (
@@ -29,7 +29,7 @@ export function AiResponseNode({ data, selected }: NodeProps) {
       />
       <div className="flex items-center gap-2 rounded-t-lg bg-violet-500 px-3 py-2 text-white">
         <Sparkles className="h-3.5 w-3.5" />
-        <span className="text-xs font-semibold">AI Response</span>
+        <span className="text-xs font-semibold">Réponse IA</span>
       </div>
       <div className="p-3">
         <p className="text-sm font-medium">{label}</p>
@@ -38,7 +38,7 @@ export function AiResponseNode({ data, selected }: NodeProps) {
             {prompt}
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground italic">No prompt configured</p>
+          <p className="mt-1 text-xs text-muted-foreground italic">Aucun prompt configuré</p>
         )}
         {nodeData.model && (
           <div className="mt-2">

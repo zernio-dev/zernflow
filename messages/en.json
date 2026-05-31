@@ -1,0 +1,23 @@
+{
+  "Navigation": {
+    "Flows": "Flows",
+    "Inbox": "Inbox",
+    "Contacts": "Contacts",
+    "Broadcasts": "Broadcasts",
+    "Sequences": "Sequences",
+    "Analytics": "Analytics",
+    "Growth": "Growth",
+    "Channels": "Channels",
+    "Settings": "Settings",
+    "LightMode": "Light mode",
+    "DarkMode": "Dark mode",
+    "SignOut": "Sign out"
+  },
+  "Settings": {
+    "Title": "Settings",
+    "Language": "Language",
+    "SelectLanguage": "Select Language",
+    "English": "English",
+    "French": "French"
+  }
+}

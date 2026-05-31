@@ -39,16 +39,16 @@ const platformLabels: Record<Platform, string> = {
 };
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "Never";
+  if (!dateStr) return "Jamais";
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return "Hier";
+  if (diffDays < 7) return `Il y a ${diffDays} j`;
+  return date.toLocaleDateString("fr-FR", { month: "short", day: "numeric" });
 }
 
 export function ContactsView({
@@ -89,22 +89,22 @@ export function ContactsView({
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-border px-8 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">Contacts</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {contacts.length} contact{contacts.length !== 1 ? "s" : ""} in your workspace
+              {contacts.length} contact{contacts.length !== 1 ? "s" : ""} dans votre espace de travail
             </p>
           </div>
         </div>
 
         {/* Search and filters */}
-        <div className="mt-4 flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full max-w-sm sm:flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Rechercher par nom ou email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -153,7 +153,7 @@ export function ContactsView({
                   : "bg-muted text-muted-foreground hover:bg-accent"
               )}
             >
-              All
+              Tous
             </button>
             {tags.map((tag) => (
               <button
@@ -189,10 +189,10 @@ export function ContactsView({
           <div className="flex flex-col items-center justify-center py-20">
             <Users className="h-10 w-10 text-muted-foreground/40" />
             <p className="mt-3 text-sm font-medium text-muted-foreground">
-              No contacts found
+              Aucun contact trouvé
             </p>
             <p className="mt-1 text-xs text-muted-foreground/70">
-              Contacts are created automatically when someone messages your channels
+              Les contacts sont créés automatiquement quand quelqu'un écrit à vos canaux
             </p>
           </div>
         ) : (
@@ -200,19 +200,19 @@ export function ContactsView({
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left">
                 <th className="px-8 py-3 text-xs font-medium uppercase text-muted-foreground">
-                  Name
+                  Nom
                 </th>
                 <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground">
                   Email
                 </th>
                 <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground">
-                  Last Interaction
+                  Dernière interaction
                 </th>
                 <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground">
-                  Tags
+                  Étiquettes
                 </th>
                 <th className="px-4 py-3 text-xs font-medium uppercase text-muted-foreground">
-                  Subscribed
+                  Abonné
                 </th>
               </tr>
             </thead>
@@ -245,7 +245,7 @@ export function ContactsView({
                           )}
                         </div>
                         <span className="text-sm font-medium hover:underline">
-                          {contact.display_name ?? "Unknown"}
+                          {contact.display_name ?? "Inconnu"}
                         </span>
                       </Link>
                     </td>
@@ -257,7 +257,7 @@ export function ContactsView({
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground/50">
-                          No email
+                          Aucun email
                         </span>
                       )}
                     </td>
@@ -295,7 +295,7 @@ export function ContactsView({
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground/50">
-                          No tags
+                          Aucune étiquette
                         </span>
                       )}
                     </td>
@@ -303,12 +303,12 @@ export function ContactsView({
                       {contact.is_subscribed ? (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
                           <CheckCircle className="h-3.5 w-3.5" />
-                          Yes
+                          Oui
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
                           <XCircle className="h-3.5 w-3.5" />
-                          No
+                          Non
                         </span>
                       )}
                     </td>

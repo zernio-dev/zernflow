@@ -33,9 +33,9 @@ interface PaletteCategory {
 
 const categories: PaletteCategory[] = [
   {
-    name: "Triggers",
+    name: "Déclencheurs",
     items: [
-      { type: "trigger", nodeType: "trigger", label: "Keyword Trigger", icon: Zap },
+      { type: "trigger", nodeType: "trigger", label: "Déclencheur mot-clé", icon: Zap },
     ],
   },
   {
@@ -44,33 +44,33 @@ const categories: PaletteCategory[] = [
       {
         type: "sendMessage",
         nodeType: "sendMessage",
-        label: "Send Message",
+        label: "Envoyer un message",
         icon: MessageSquare,
       },
       {
         type: "aiResponse",
         nodeType: "aiResponse",
-        label: "AI Response",
+        label: "Réponse IA",
         icon: Sparkles,
       },
     ],
   },
   {
-    name: "Logic",
+    name: "Logique",
     items: [
       { type: "condition", nodeType: "condition", label: "Condition", icon: GitBranch },
-      { type: "delay", nodeType: "delay", label: "Delay", icon: Clock },
+      { type: "delay", nodeType: "delay", label: "Délai", icon: Clock },
       {
         type: "action",
         nodeType: "abSplit",
-        label: "A/B Split",
+        label: "Test A/B",
         icon: Shuffle,
         actionType: "abSplit",
       },
       {
         type: "action",
         nodeType: "smartDelay",
-        label: "Smart Delay",
+        label: "Délai intelligent",
         icon: Hourglass,
         actionType: "smartDelay",
       },
@@ -82,63 +82,77 @@ const categories: PaletteCategory[] = [
       {
         type: "action",
         nodeType: "addTag",
-        label: "Add Tag",
+        label: "Ajouter une étiquette",
         icon: Tag,
         actionType: "addTag",
       },
       {
         type: "action",
         nodeType: "removeTag",
-        label: "Remove Tag",
+        label: "Retirer une étiquette",
         icon: Tag,
         actionType: "removeTag",
       },
       {
         type: "action",
         nodeType: "setCustomField",
-        label: "Set Field",
+        label: "Définir un champ",
         icon: FileText,
         actionType: "setCustomField",
       },
       {
         type: "action",
         nodeType: "httpRequest",
-        label: "HTTP Request",
+        label: "Requête HTTP",
         icon: Globe,
         actionType: "httpRequest",
       },
       {
         type: "action",
         nodeType: "goToFlow",
-        label: "Go To Flow",
+        label: "Aller au flux",
         icon: ArrowRightLeft,
         actionType: "goToFlow",
       },
       {
         type: "action",
         nodeType: "humanTakeover",
-        label: "Human Takeover",
+        label: "Reprise humaine",
         icon: UserCheck,
         actionType: "humanTakeover",
       },
       {
         type: "action",
+        nodeType: "commentReply",
+        label: "Réponse commentaire",
+        icon: MessageSquare,
+        actionType: "commentReply",
+      },
+      {
+        type: "action",
+        nodeType: "privateReply",
+        label: "Réponse privée",
+        icon: MessageSquare,
+        actionType: "privateReply",
+      },
+      {
+        type: "action",
         nodeType: "subscribe",
-        label: "Subscribe",
+        label: "Abonner",
         icon: Bell,
         actionType: "subscribe",
       },
       {
         type: "action",
         nodeType: "unsubscribe",
-        label: "Unsubscribe",
+        label: "Désabonner",
         icon: Bell,
         actionType: "unsubscribe",
       },
       {
         type: "action",
         nodeType: "enrollSequence",
-        label: "Enroll in Sequence",
+        label: "Inscrire à une séquence",
         icon: ListOrdered,
         actionType: "enrollSequence",
       },
@@ -158,10 +172,10 @@ function onDragStart(event: DragEvent, item: PaletteItem) {
 
 export function NodePalette() {
   return (
-    <div className="flex w-56 flex-col border-r border-border bg-card">
+    <div className="hidden w-56 shrink-0 flex-col border-r border-border bg-card md:flex">
       <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">Nodes</h2>
-        <p className="text-xs text-muted-foreground">Drag to canvas</p>
+        <h2 className="text-sm font-semibold">Blocs</h2>
+        <p className="text-xs text-muted-foreground">Glisser sur le canevas</p>
       </div>
       <div className="flex-1 overflow-y-auto p-3">
         {categories.map((category) => (

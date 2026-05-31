@@ -6,7 +6,7 @@ import type { SequenceStatus, Json } from "@/lib/types/database";
 
 const statusConfig: Record<SequenceStatus, { label: string; classes: string }> = {
   draft: {
-    label: "Draft",
+    label: "Brouillon",
     classes: "bg-muted text-muted-foreground",
   },
   active: {
@@ -14,13 +14,13 @@ const statusConfig: Record<SequenceStatus, { label: string; classes: string }> =
     classes: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
   },
   paused: {
-    label: "Paused",
+    label: "En pause",
     classes: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
   },
 };
 
 function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
+  return new Date(dateString).toLocaleDateString("fr-FR", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -60,11 +60,11 @@ export default async function SequencesPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-border px-8 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Sequences</h1>
+            <h1 className="text-2xl font-bold">Séquences</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create drip campaigns to nurture contacts over time
+              Créez des campagnes automatisées pour nourrir vos contacts dans le temps
             </p>
           </div>
           <CreateSequenceButton />
@@ -75,9 +75,9 @@ export default async function SequencesPage() {
       {!sequences || sequences.length === 0 ? (
         <div className="mt-12 rounded-xl border border-dashed border-border p-12 text-center">
           <ListOrdered className="mx-auto h-10 w-10 text-muted-foreground" />
-          <h2 className="mt-4 text-lg font-semibold">No sequences yet</h2>
+          <h2 className="mt-4 text-lg font-semibold">Aucune séquence pour le moment</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Create your first sequence to start nurturing contacts automatically.
+            Créez votre première séquence pour engager vos contacts automatiquement.
           </p>
           <div className="mt-4">
             <CreateSequenceButton />
@@ -116,10 +116,10 @@ export default async function SequencesPage() {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {stepCount} {stepCount === 1 ? "step" : "steps"}
+                      {stepCount} {stepCount === 1 ? "étape" : "étapes"}
                       {enrolled > 0 && (
                         <span className="ml-2">
-                          {enrolled} enrolled
+                          {enrolled} inscrit{enrolled === 1 ? "" : "s"}
                         </span>
                       )}
                     </p>
@@ -131,7 +131,7 @@ export default async function SequencesPage() {
                   </p>
                 )}
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Updated {formatDate(sequence.updated_at)}
+                  Mis à jour le {formatDate(sequence.updated_at)}
                 </p>
               </Link>
             );

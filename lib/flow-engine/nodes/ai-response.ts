@@ -108,6 +108,15 @@ export async function executeAiResponse(
       status: "sent",
     });
 
+    // Update conversation metadata so the inbox refreshes in real-time
+    await supabase
+      .from("conversations")
+      .update({
+        last_message_at: new Date().toISOString(),
+        last_message_preview: text.slice(0, 100),
+      })
+      .eq("id", context.conversationId);
+
     await supabase.from("analytics_events").insert({
       workspace_id: context.workspaceId,
       flow_id: context.flowId,

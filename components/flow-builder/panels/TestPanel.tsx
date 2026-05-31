@@ -120,17 +120,17 @@ export function TestPanel({
         return (
           <div>
             <span className="text-xs text-muted-foreground">
-              Type: {r.triggerType}
-              {r.keywords && ` | Keywords: ${r.keywords.join(", ")}`}
+              Type : {r.triggerType}
+              {r.keywords && ` | Mots-clés : ${r.keywords.join(", ")}`}
             </span>
             <div className="mt-1">
               {r.matched ? (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                  <CheckCircle2 className="h-3 w-3" /> Matched
+                  <CheckCircle2 className="h-3 w-3" /> Correspondance
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600">
-                  <XCircle className="h-3 w-3" /> Not matched
+                  <XCircle className="h-3 w-3" /> Pas de correspondance
                 </span>
               )}
             </div>
@@ -184,7 +184,7 @@ export function TestPanel({
                 ) : (
                   <XCircle className="h-3 w-3" />
                 )}
-                {r.result ? "TRUE" : "FALSE"} &rarr; {r.path} path
+                {r.result ? "VRAI" : "FAUX"} &rarr; chemin {r.path === "yes" ? "oui" : "non"}
               </span>
             </div>
           </div>
@@ -193,8 +193,8 @@ export function TestPanel({
       case "delay":
         return (
           <p className="text-xs text-muted-foreground">
-            Would wait {r.duration} {r.unit}{" "}
-            <span className="text-amber-600">(skipped in test)</span>
+            Attendrait {r.duration} {r.unit}{" "}
+            <span className="text-amber-600">(ignoré pendant le test)</span>
           </p>
         );
 
@@ -207,7 +207,7 @@ export function TestPanel({
         return (
           <p className="text-xs text-muted-foreground">
             {r.mode === "skipped"
-              ? "AI would generate a response here"
+              ? "L'IA générerait une réponse ici"
               : r.text}
           </p>
         );
@@ -215,7 +215,7 @@ export function TestPanel({
       case "split":
         return (
           <p className="text-xs text-muted-foreground">
-            Randomly selected: <strong>{r.selectedPath}</strong> (weight:{" "}
+            Sélection aléatoire : <strong>{r.selectedPath}</strong> (poids :{" "}
             {r.weight})
           </p>
         );
@@ -223,29 +223,29 @@ export function TestPanel({
       case "smart_delay":
         return (
           <p className="text-xs text-muted-foreground">
-            Would wait for next user message{" "}
-            <span className="text-amber-600">(paused)</span>
+            Attendrait le prochain message utilisateur{" "}
+            <span className="text-amber-600">(en pause)</span>
           </p>
         );
 
       case "human_takeover":
         return (
           <p className="text-xs text-muted-foreground">
-            Automation paused, flagged for human review
+            Automatisation en pause, signalée pour revue humaine
           </p>
         );
 
       case "go_to_flow":
         return (
           <p className="text-xs text-muted-foreground">
-            Would jump to flow: <span className="font-mono">{r.flowId}</span>
+            Irait vers le flux : <span className="font-mono">{r.flowId}</span>
           </p>
         );
 
       case "enroll_sequence":
         return (
           <p className="text-xs text-muted-foreground">
-            Would enroll in sequence:{" "}
+            Inscrirait à la séquence :{" "}
             <span className="font-mono">{r.sequenceId}</span>
           </p>
         );
@@ -253,28 +253,28 @@ export function TestPanel({
       case "subscribe":
         return (
           <p className="text-xs text-muted-foreground">
-            Contact would be subscribed
+            Le contact serait abonné
           </p>
         );
 
       case "unsubscribe":
         return (
           <p className="text-xs text-muted-foreground">
-            Contact would be unsubscribed
+            Le contact serait désabonné
           </p>
         );
 
       case "comment_reply":
         return (
           <div className="rounded-lg bg-primary/10 px-3 py-2 text-xs">
-            {r.text || "(empty)"}
+            {r.text || "(vide)"}
           </div>
         );
 
       case "private_reply":
         return (
           <div className="rounded-lg bg-primary/10 px-3 py-2 text-xs">
-            {r.text || "(empty)"}
+            {r.text || "(vide)"}
           </div>
         );
 
@@ -293,7 +293,7 @@ export function TestPanel({
       case "flow_end":
         return (
           <p className="text-xs text-emerald-600 font-medium">
-            Flow completed successfully
+            Flux terminé avec succès
           </p>
         );
 
@@ -303,12 +303,12 @@ export function TestPanel({
   }
 
   return (
-    <div className="flex w-80 flex-col border-l border-border bg-card">
+    <div className="fixed inset-y-0 right-0 z-40 flex w-[min(20rem,calc(100vw-1rem))] flex-col border-l border-border bg-card shadow-xl md:relative md:inset-auto md:z-auto md:w-80 md:shadow-none">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Play className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Test Flow</h3>
+          <h3 className="text-sm font-semibold">Tester le flux</h3>
         </div>
         <button
           onClick={onClose}
@@ -322,13 +322,13 @@ export function TestPanel({
       <div className="space-y-3 border-b border-border p-4">
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">
-            Simulated Message
+            Message simulé
           </label>
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type a test message..."
+            placeholder="Saisissez un message de test..."
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             onKeyDown={(e) => {
               if (e.key === "Enter") runTest();
@@ -337,7 +337,7 @@ export function TestPanel({
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">
-            Mock Tags (comma-separated)
+            Étiquettes fictives (séparées par des virgules)
           </label>
           <input
             type="text"
@@ -352,7 +352,7 @@ export function TestPanel({
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
         >
           <Play className="h-3.5 w-3.5" />
-          Run Test
+          Lancer le test
         </button>
       </div>
 
@@ -362,10 +362,10 @@ export function TestPanel({
           <div className="py-8 text-center">
             <Play className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <p className="mt-2 text-sm text-muted-foreground">
-              Run a test to see the flow path
+              Lancez un test pour voir le chemin du flux
             </p>
             <p className="mt-1 text-xs text-muted-foreground/70">
-              The simulator traces the execution path without sending real
+              Le simulateur trace le chemin d'exécution sans envoyer de vrais
               messages.
             </p>
           </div>

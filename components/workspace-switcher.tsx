@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Plus, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { switchWorkspace, createWorkspace } from "@/lib/actions/workspace";
 
 interface WorkspaceItem {
   id: string;
@@ -56,18 +55,29 @@ export function WorkspaceSwitcher({
       return;
     }
     setSwitching(workspaceId);
-    await switchWorkspace(workspaceId);
-    router.refresh();
-    setOpen(false);
-    setSwitching(null);
+    try {
+      await fetch("/api/v1/workspaces/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      router.refresh();
+      setOpen(false);
+    } finally {
+      setSwitching(null);
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
     setSwitching("new");
-    const result = await createWorkspace(newName.trim());
-    if (result.ok) {
+    const res = await fetch("/api/v1/workspaces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName.trim() }),
+    });
+    if (res.ok) {
       router.refresh();
       setOpen(false);
       setCreating(false);
@@ -142,7 +152,7 @@ export function WorkspaceSwitcher({
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Workspace name"
+                placeholder="Nom de l'espace de travail"
                 className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
                 disabled={switching === "new"}
               />
@@ -155,7 +165,7 @@ export function WorkspaceSwitcher({
                   {switching === "new" ? (
                     <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    "Create"
+                    "Créer"
                   )}
                 </button>
                 <button
@@ -166,7 +176,7 @@ export function WorkspaceSwitcher({
                   }}
                   className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
                 >
-                  Cancel
+                  Annuler
                 </button>
               </div>
             </form>
@@ -176,7 +186,7 @@ export function WorkspaceSwitcher({
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
-              Create workspace
+              Créer un espace de travail
             </button>
           )}
         </div>

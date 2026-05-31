@@ -12,11 +12,11 @@ export async function GET(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const conversationId = request.nextUrl.searchParams.get("conversationId");
   if (!conversationId) {
-    return NextResponse.json({ error: "conversationId required" }, { status: 400 });
+    return NextResponse.json({ error: "conversationId est requis" }, { status: 400 });
   }
 
   // Look up the Zernio conversation ID and workspace API key
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     .single();
 
   if (!conversation?.late_conversation_id) {
-    return NextResponse.json({ error: "Conversation not found or missing Zernio ID" }, { status: 404 });
+    return NextResponse.json({ error: "Conversation introuvable ou ID Zernio manquant" }, { status: 404 });
   }
 
   const { data: workspace } = await supabase
@@ -37,12 +37,12 @@ export async function GET(request: NextRequest) {
     .single();
 
   if (!workspace?.late_api_key_encrypted) {
-    return NextResponse.json({ error: "API key not configured" }, { status: 400 });
+    return NextResponse.json({ error: "Clé API non configurée" }, { status: 400 });
   }
 
   const channel = conversation.channels as { late_account_id: string } | null;
   if (!channel?.late_account_id) {
-    return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    return NextResponse.json({ error: "Canal introuvable" }, { status: 404 });
   }
 
   // Fetch messages from Zernio API
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Failed to fetch messages from Zernio API:", error);
     return NextResponse.json(
-      { error: "Failed to fetch messages" },
+      { error: "Impossible de récupérer les messages" },
       { status: 500 }
     );
   }
@@ -93,14 +93,14 @@ export async function POST(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const body = await request.json();
   const { conversationId, text } = body;
 
   if (!conversationId || !text) {
     return NextResponse.json(
-      { error: "conversationId and text required" },
+      { error: "conversationId et texte requis" },
       { status: 400 }
     );
   }
@@ -113,19 +113,19 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (!conversation) {
-    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+    return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
   }
 
   if (!conversation.late_conversation_id) {
     return NextResponse.json(
-      { error: "No Zernio conversation ID linked to this conversation" },
+      { error: "Aucun ID de conversation Zernio lié à cette conversation" },
       { status: 400 }
     );
   }
 
   const channel = conversation.channels as { late_account_id: string } | null;
   if (!channel?.late_account_id) {
-    return NextResponse.json({ error: "Channel not found or missing Zernio account ID" }, { status: 404 });
+    return NextResponse.json({ error: "Canal introuvable ou ID de compte Zernio manquant" }, { status: 404 });
   }
 
   const { data: workspace } = await supabase
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (!workspace?.late_api_key_encrypted) {
-    return NextResponse.json({ error: "API key not configured" }, { status: 400 });
+    return NextResponse.json({ error: "Clé API non configurée" }, { status: 400 });
   }
 
   // Send via Zernio SDK — Zernio stores the message, no local insert needed
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Failed to send message via Zernio API:", error);
     return NextResponse.json(
-      { error: `Failed to send message: ${error}` },
+      { error: `Impossible d'envoyer le message : ${error}` },
       { status: 500 }
     );
   }

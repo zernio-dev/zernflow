@@ -21,15 +21,15 @@ export default async function InvitePage({
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="w-full max-w-sm text-center space-y-4">
-          <h1 className="text-2xl font-bold">Invite not found</h1>
+          <h1 className="text-2xl font-bold">Invitation introuvable</h1>
           <p className="text-sm text-muted-foreground">
-            This invite link may be invalid or has been revoked.
+            Ce lien d'invitation est peut-être invalide ou a été révoqué.
           </p>
           <a
             href="/login"
             className="inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            Go to Login
+            Aller à la connexion
           </a>
         </div>
       </div>
@@ -43,16 +43,16 @@ export default async function InvitePage({
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="w-full max-w-sm text-center space-y-4">
-          <h1 className="text-2xl font-bold">Invite expired</h1>
+          <h1 className="text-2xl font-bold">Invitation expirée</h1>
           <p className="text-sm text-muted-foreground">
-            This invite has expired. Please ask the workspace owner to send a
-            new one.
+            Cette invitation a expiré. Demandez au propriétaire de l'espace de
+            travail d'en envoyer une nouvelle.
           </p>
           <a
             href="/login"
             className="inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            Go to Login
+            Aller à la connexion
           </a>
         </div>
       </div>
@@ -63,15 +63,15 @@ export default async function InvitePage({
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="w-full max-w-sm text-center space-y-4">
-          <h1 className="text-2xl font-bold">Invite already used</h1>
+          <h1 className="text-2xl font-bold">Invitation déjà utilisée</h1>
           <p className="text-sm text-muted-foreground">
-            This invite has already been accepted.
+            Cette invitation a déjà été acceptée.
           </p>
           <a
             href="/dashboard"
             className="inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            Go to Dashboard
+            Aller au tableau de bord
           </a>
         </div>
       </div>
@@ -94,7 +94,7 @@ export default async function InvitePage({
     inviter?.user_metadata?.full_name ??
     inviter?.user_metadata?.name ??
     inviter?.email ??
-    "Someone";
+    "Quelqu'un";
 
   // Check if current user is logged in
   const {
@@ -104,7 +104,7 @@ export default async function InvitePage({
   return (
     <AcceptInviteView
       inviteId={invite.id}
-      workspaceName={workspace?.name ?? "a workspace"}
+      workspaceName={workspace?.name ?? "un espace de travail"}
       inviterName={inviterName}
       role={invite.role}
       email={invite.email}

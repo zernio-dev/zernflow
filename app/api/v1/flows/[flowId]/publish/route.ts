@@ -12,7 +12,7 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   const { data: membership } = await supabase
     .from("workspace_members")
@@ -22,7 +22,7 @@ export async function POST(
     .single();
 
   if (!membership)
-    return NextResponse.json({ error: "No workspace" }, { status: 404 });
+    return NextResponse.json({ error: "Aucun espace de travail" }, { status: 404 });
 
   // Get current flow
   const { data: flow, error } = await supabase
@@ -34,7 +34,7 @@ export async function POST(
 
   if (error || !flow)
     return NextResponse.json(
-      { error: error?.message || "Flow not found" },
+      { error: error?.message || "Flux introuvable" },
       { status: 404 }
     );
 

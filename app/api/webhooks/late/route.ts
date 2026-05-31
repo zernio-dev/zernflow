@@ -202,10 +202,45 @@ async function handleWebhook(request: NextRequest) {
 
   const messagePreview = (msg.text || "").slice(0, 100);
 
-  const { data: conversation } = await supabase
+  // Check if conversation already exists for this channel+contact
+  const { data: existingConversation } = await supabase
     .from("conversations")
-    .upsert(
-      {
+    .select("id, is_automation_paused, status")
+    .eq("channel_id", channel.id)
+    .eq("contact_id", contactId)
+    .maybeSingle();
+
+  let conversation: { id: string; is_automation_paused: boolean } | null = null;
+
+  if (existingConversation) {
+    // Update existing conversation — only update metadata, preserve status if snoozed
+    const { data: updated } = await supabase
+      .from("conversations")
+      .update({
+        late_conversation_id: conv.id,
+        last_message_at: new Date().toISOString(),
+        last_message_preview: messagePreview,
+        // Only reopen if currently closed; preserve snoozed status
+        ...(existingConversation.status === "closed" ? { status: "open" as const } : {}),
+      })
+      .eq("id", existingConversation.id)
+      .select("id, is_automation_paused")
+      .single();
+
+    conversation = updated;
+
+    // Increment unread count for existing conversations
+    if (conversation) {
+      await supabase.rpc("increment_unread", {
+        conv_id: conversation.id,
+        preview: messagePreview,
+      });
+    }
+  } else {
+    // Create new conversation
+    const { data: inserted } = await supabase
+      .from("conversations")
+      .insert({
         workspace_id: channel.workspace_id,
         channel_id: channel.id,
         contact_id: contactId,
@@ -215,11 +250,12 @@ async function handleWebhook(request: NextRequest) {
         last_message_at: new Date().toISOString(),
         last_message_preview: messagePreview,
         unread_count: 1,
-      },
-      { onConflict: "channel_id,contact_id" }
-    )
-    .select("id, is_automation_paused")
-    .single();
+      })
+      .select("id, is_automation_paused")
+      .single();
+
+    conversation = inserted;
+  }
 
   if (!conversation) {
     return NextResponse.json(
@@ -228,16 +264,20 @@ async function handleWebhook(request: NextRequest) {
     );
   }
 
-  if (existingContactChannel) {
-    await supabase
-      .rpc("increment_unread", {
-        conv_id: conversation.id,
-        preview: messagePreview,
-      })
-      .then(() => {});
-  }
-
-  // Messages are stored by Zernio (source of truth) — no local insert needed.
+  // ── Store inbound message locally ──────────────────────────────────────
+  // Both Zernio and local DB store messages for consistency.
+  // This is critical for: AI context, welcome trigger detection, message history, bot attribution.
+  await supabase.from("messages").insert({
+    conversation_id: conversation.id,
+    direction: "inbound",
+    text: msg.text || null,
+    attachments: msg.attachments?.length ? msg.attachments : null,
+    quick_reply_payload: metadata?.quickReplyPayload || null,
+    postback_payload: metadata?.postbackPayload || null,
+    callback_data: metadata?.callbackData || null,
+    platform_message_id: msg.platformMessageId || null,
+    status: "sent",
+  });
 
   // ── Flow engine ───────────────────────────────────────────────────────────
 
@@ -309,31 +349,20 @@ async function handleGlobalKeywords(
 
   if (!workspace?.global_keywords) return false;
 
-  const keywords = workspace.global_keywords as Array<{
-    keyword: string;
-    action?: string;
-    flowId?: string;
-  }>;
-
+  // global_keywords is stored as string[] (simple keyword strings)
+  // The Settings UI saves them as plain strings like ["stop", "unsubscribe"]
+  const keywords = workspace.global_keywords as string[];
   const normalizedText = text.toLowerCase().trim();
 
   for (const kw of keywords) {
-    if (normalizedText === kw.keyword.toLowerCase()) {
-      if (kw.action === "unsubscribe") {
-        await supabase
-          .from("contacts")
-          .update({ is_subscribed: false })
-          .eq("id", contactId);
-        return true;
-      }
-      if (kw.action === "subscribe") {
-        await supabase
-          .from("contacts")
-          .update({ is_subscribed: true })
-          .eq("id", contactId);
-        return true;
-      }
-      return false;
+    const keyword = typeof kw === "string" ? kw : (kw as { keyword: string }).keyword;
+    if (normalizedText === keyword.toLowerCase()) {
+      // Default action for global keywords is unsubscribe
+      await supabase
+        .from("contacts")
+        .update({ is_subscribed: false })
+        .eq("id", contactId);
+      return true;
     }
   }
 

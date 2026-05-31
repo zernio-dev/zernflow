@@ -49,13 +49,13 @@ export default async function ContactDetailPage({
   const channels = channelsRes.data ?? [];
   const conversations = conversationsRes.data ?? [];
   const customFields = customFieldsRes.data ?? [];
-  const tags = contact.contact_tags
+  const tags = (contact.contact_tags ?? [])
     .map((ct: { tags: unknown }) => ct.tags)
     .filter(Boolean) as { id: string; name: string; color: string | null }[];
 
   function formatDate(dateStr: string | null): string {
-    if (!dateStr) return "Never";
-    return new Date(dateStr).toLocaleDateString([], {
+    if (!dateStr) return "Jamais";
+    return new Date(dateStr).toLocaleDateString("fr-FR", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -73,9 +73,9 @@ export default async function ContactDetailPage({
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to contacts
+          Retour aux contacts
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-muted text-lg font-semibold">
             {contact.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -90,9 +90,9 @@ export default async function ContactDetailPage({
           </div>
           <div>
             <h1 className="text-xl font-bold">
-              {contact.display_name ?? "Unknown"}
+              {contact.display_name ?? "Inconnu"}
             </h1>
-            <div className="mt-0.5 flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="mt-0.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               {contact.email && (
                 <span className="flex items-center gap-1">
                   <Mail className="h-3 w-3" />
@@ -101,17 +101,17 @@ export default async function ContactDetailPage({
               )}
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                Last active {formatDate(contact.last_interaction_at)}
+                Dernière activité le {formatDate(contact.last_interaction_at)}
               </span>
               {contact.is_subscribed ? (
                 <span className="flex items-center gap-1 text-green-600">
                   <CheckCircle className="h-3 w-3" />
-                  Subscribed
+                  Abonné
                 </span>
               ) : (
                 <span className="flex items-center gap-1">
                   <XCircle className="h-3 w-3" />
-                  Unsubscribed
+                  Désabonné
                 </span>
               )}
             </div>
@@ -148,10 +148,10 @@ export default async function ContactDetailPage({
           {/* Connected channels */}
           <div>
             <h2 className="mb-3 text-sm font-semibold uppercase text-muted-foreground">
-              Connected Channels
+              Canaux connectés
             </h2>
             {channels.length === 0 ? (
-              <p className="text-sm text-muted-foreground/60">No channels</p>
+              <p className="text-sm text-muted-foreground/60">Aucun canal</p>
             ) : (
               <div className="space-y-2">
                 {channels.map((cc) => {
@@ -172,7 +172,7 @@ export default async function ContactDetailPage({
                       />
                       <div>
                         <p className="text-sm font-medium">
-                          {ch?.display_name ?? ch?.username ?? "Unknown"}
+                          {ch?.display_name ?? ch?.username ?? "Inconnu"}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {ch?.platform} ·{" "}
@@ -195,7 +195,7 @@ export default async function ContactDetailPage({
             </h2>
             {conversations.length === 0 ? (
               <p className="text-sm text-muted-foreground/60">
-                No conversations
+                Aucune conversation
               </p>
             ) : (
               <div className="space-y-2">
@@ -220,7 +220,7 @@ export default async function ContactDetailPage({
                         </p>
                       </div>
                       <p className="mt-0.5 truncate text-sm">
-                        {conv.last_message_preview || "No messages"}
+                        {conv.last_message_preview || "Aucun message"}
                       </p>
                     </div>
                   </Link>
@@ -233,7 +233,7 @@ export default async function ContactDetailPage({
           {customFields.length > 0 && (
             <div>
               <h2 className="mb-3 text-sm font-semibold uppercase text-muted-foreground">
-                Custom Fields
+                Champs personnalisés
               </h2>
               <div className="space-y-2">
                 {customFields.map((cf, i) => (
@@ -244,7 +244,7 @@ export default async function ContactDetailPage({
                     <span className="text-sm text-muted-foreground">
                       {(
                         cf.custom_field_definitions as { name?: string }
-                      )?.name ?? "Field"}
+                      )?.name ?? "Champ"}
                     </span>
                     <span className="text-sm font-medium">{cf.value}</span>
                   </div>
