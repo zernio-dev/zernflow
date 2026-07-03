@@ -136,6 +136,14 @@ Recv.  Engine     Chat           Processor
 | Comment Reply | Public reply to comments |
 | Private Reply | Instagram comment-to-DM |
 
+## Xquik Twitter/X Workflow Recipe
+
+ZernFlow's HTTP Request node can call an approval-gated Xquik endpoint before a
+flow posts or replies on Twitter/X. See
+[`docs/xquik-twitter-workflows.md`](docs/xquik-twitter-workflows.md) for a
+ready-to-adapt recipe that keeps X account actions explicit, logs the Xquik job
+identifier, and routes follow-up messages from the API response.
+
 ## Project Structure
 
 ```
