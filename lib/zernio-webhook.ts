@@ -64,12 +64,11 @@ function samePath(a: string | undefined, b: string): boolean {
  * - Found but URL differs or an event is missing → update it.
  * - Found and correct → no-op.
  *
- * Identifying "our" webhook is deliberately tolerant: the path is matched
- * ignoring any query string (a webhook registered by hand may carry an SSO
- * bypass token in the URL), and — since Zernio allows a single webhook per
- * profile — a lone pre-existing entry is adopted even under a different name.
- * On adoption we rewrite the URL to the canonical one and set our secret, so
- * both sides converge on the next call.
+ * Identifying "our" webhook: match by path (ignoring any query string, since a
+ * webhook registered by hand may carry an SSO bypass token in the URL) or by
+ * name. Never adopt anything else: Zernio allows up to 10 webhooks per account,
+ * so an unmatched entry belongs to another integration the user owns and
+ * rewriting it would silently break that integration.
  */
 export async function ensureWebhookRegistered(
   zernio: Zernio,
@@ -79,9 +78,7 @@ export async function ensureWebhookRegistered(
 
   const res = await zernio.webhooks.getWebhookSettings();
   const webhooks = (res?.data?.webhooks ?? []) as ZernioWebhook[];
-  const mine =
-    webhooks.find((w) => samePath(w.url, url) || w.name === WEBHOOK_NAME) ??
-    (webhooks.length === 1 ? webhooks[0] : undefined);
+  const mine = webhooks.find((w) => samePath(w.url, url) || w.name === WEBHOOK_NAME);
 
   if (!mine) {
     await zernio.webhooks.createWebhookSettings({

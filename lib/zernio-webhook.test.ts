@@ -142,7 +142,7 @@ describe("ensureWebhookRegistered", () => {
     expect(res.action).toBe("unchanged");
   });
 
-  it("adopts a lone pre-existing webhook (different name + SSO bypass query) and normalizes it (E2E finding)", async () => {
+  it("adopts a pre-existing webhook with a different name when the path matches (E2E finding)", async () => {
     const z = fakeZernio([
       {
         _id: "wh9",
@@ -188,6 +188,23 @@ describe("ensureWebhookRegistered", () => {
     const z = fakeZernio([
       { _id: "a", name: "Other A", url: "https://x.example/hook", events: [] },
       { _id: "b", name: "Other B", url: "https://y.example/hook", events: [] },
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await ensureWebhookRegistered(z.client as any, { ...opts, events: [...opts.events] });
+
+    expect(res.action).toBe("created");
+    expect(z.create).toHaveBeenCalledTimes(1);
+    expect(z.update).not.toHaveBeenCalled();
+  });
+
+  it("never hijacks a lone unrelated webhook (Zernio allows up to 10 per account)", async () => {
+    const z = fakeZernio([
+      {
+        _id: "user1",
+        name: "AgendaAI Webhook",
+        url: "https://example.supabase.co/functions/v1/zernio-webhook",
+        events: ["message.received"],
+      },
     ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await ensureWebhookRegistered(z.client as any, { ...opts, events: [...opts.events] });
