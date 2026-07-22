@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { executeFlow } from "@/lib/flow-engine/engine";
 import { matchTrigger } from "@/lib/flow-engine/trigger-matcher";
-import crypto from "crypto";
+import { resolveWebhookSecret, verifyWebhookSignature } from "@/lib/zernio-webhook";
 
 // ── Zernio API webhook payload ───────────────────────────────────────────────
 
@@ -117,31 +117,11 @@ async function handleWebhook(request: NextRequest) {
     }
   }
 
-  // Verify HMAC-SHA256 signature
-  if (channel.webhook_secret) {
-    if (!signature) {
-      return NextResponse.json(
-        { error: "Missing signature" },
-        { status: 401 }
-      );
-    }
-
-    const expected = crypto
-      .createHmac("sha256", channel.webhook_secret)
-      .update(body)
-      .digest("hex");
-
-    if (
-      !crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expected)
-      )
-    ) {
-      return NextResponse.json(
-        { error: "Invalid signature" },
-        { status: 401 }
-      );
-    }
+  // Verify HMAC-SHA256 signature against the workspace-level secret
+  // (falls back to the legacy per-channel secret during transition).
+  const secret = await resolveWebhookSecret(supabase, channel);
+  if (secret && !verifyWebhookSignature(secret, body, signature)) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   // ── Upsert contact ───────────────────────────────────────────────────────

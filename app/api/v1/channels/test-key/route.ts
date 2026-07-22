@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createZernioClient } from "@/lib/zernio-client";
+import {
+  ensureWebhookRegistered,
+  getOrCreateWorkspaceWebhookSecret,
+} from "@/lib/zernio-webhook";
 
 /**
  * POST /api/v1/channels/test-key
@@ -47,6 +51,22 @@ export async function POST(request: NextRequest) {
         { error: `Key valid but failed to save: ${saveErr.message}` },
         { status: 500 }
       );
+    }
+
+    // Register (or refresh) this deployment's webhook in Zernio so inbound
+    // messages/comments reach the Inbox. Best-effort: a failure here must not
+    // block saving the key or syncing channels.
+    try {
+      const secret = await getOrCreateWorkspaceWebhookSecret(supabase, workspaceId);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const zernio = createZernioClient(apiKey.trim());
+      await ensureWebhookRegistered(zernio, {
+        appUrl,
+        secret,
+        events: ["message.received", "comment.received"],
+      });
+    } catch (err) {
+      console.error("[test-key] webhook auto-registration failed:", err);
     }
 
     // Auto-sync channels

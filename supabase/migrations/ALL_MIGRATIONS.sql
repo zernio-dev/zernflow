@@ -514,3 +514,11 @@ create policy "flow_versions_insert" on flow_versions for insert
     where f.id = flow_versions.flow_id
       and wm.user_id = auth.uid()
   ));
+
+-- ============================================================
+-- MIGRATION 11: WORKSPACE WEBHOOK SECRET
+-- ============================================================
+-- Workspace-level secret for Zernio webhook HMAC signature verification.
+-- Zernio exposes a single webhook per profile/API key, so the secret is stored
+-- at the workspace level (not per-channel). Used by /api/webhooks/late.
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
