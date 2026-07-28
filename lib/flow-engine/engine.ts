@@ -129,7 +129,7 @@ export async function executeFlow(
 
 const MAX_TRAVERSAL_DEPTH = 50;
 
-async function resumeSession(
+export async function resumeSession(
   supabase: SupabaseClient<Database>,
   session: Database["public"]["Tables"]["flow_sessions"]["Row"],
   context: FlowExecutionContext
@@ -179,7 +179,7 @@ async function resumeSession(
   // Update session
   await supabase
     .from("flow_sessions")
-    .update({ waiting_for_input: false })
+    .update({ waiting_for_input: false, waiting_until: null })
     .eq("id", session.id);
 
   // Continue from current node

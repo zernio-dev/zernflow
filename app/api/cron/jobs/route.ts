@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { executeFlow } from "@/lib/flow-engine/engine";
+import { resumeSession } from "@/lib/flow-engine/engine";
 import type { Json } from "@/lib/types/database";
 
 /**
@@ -117,9 +117,16 @@ async function processJob(
 
       if (!session) return; // Session was cancelled/completed
 
-      await executeFlow(supabase, {
+      // Treat the job as satisfied if the session already moved past the
+      // delay node (e.g. duplicate jobs left by the old restart bug).
+      if (payload.nodeId && session.current_node_id !== payload.nodeId) return;
+
+      // Resume from the node after the delay; resumeSession restores
+      // variables from the session row and leaves {{message}} untouched
+      // because incomingMessage is empty.
+      await resumeSession(supabase, session, {
         triggerId: "",
-        flowId: payload.flowId,
+        flowId: session.flow_id,
         channelId: payload.channelId,
         contactId: payload.contactId,
         conversationId: payload.conversationId,
