@@ -46,12 +46,16 @@ export async function GET(request: NextRequest) {
 
   for (const job of jobs) {
     // Mark as processing; .select() returns the updated row so we can verify
-    // the claim (overlapping cron runs would otherwise both process the job)
+    // the claim (overlapping cron runs would otherwise both process the job).
+    // Matching attempts too makes this a CAS: once another run bumps attempts,
+    // a stale snapshot can never re-claim the job, even after that run
+    // requeues it as pending, so backoff and the attempt count are respected.
     const { data: claimed } = await supabase
       .from("scheduled_jobs")
       .update({ status: "processing", attempts: job.attempts + 1 })
       .eq("id", job.id)
       .eq("status", "pending") // Optimistic lock
+      .eq("attempts", job.attempts)
       .select();
 
     if (!claimed || claimed.length === 0) continue; // Claim lost to another run
