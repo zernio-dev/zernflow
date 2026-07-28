@@ -134,13 +134,24 @@ export async function resumeSession(
   session: Database["public"]["Tables"]["flow_sessions"]["Row"],
   context: FlowExecutionContext
 ) {
-  const { data: flow } = await supabase
+  const { data: flow, error: flowError } = await supabase
     .from("flows")
     .select("*")
     .eq("id", session.flow_id)
     .single();
 
-  if (!flow) return;
+  if (!flow) {
+    // postgrest-js swallows transient failures into { data: null, error }, it
+    // does not throw. Returning silently here would strand the session active
+    // with no pending job (the cron marks the resume job completed), so settle
+    // it as cancelled to make the failure explicit.
+    await cancelUnresumableSession(
+      supabase,
+      session.id,
+      `flow ${session.flow_id} could not be loaded${flowError ? `: ${flowError.message}` : ""}`
+    );
+    return;
+  }
 
   const nodes = flow.nodes as unknown as FlowNode[];
   const edges = flow.edges as unknown as FlowEdge[];
@@ -184,7 +195,16 @@ export async function resumeSession(
 
   // Continue from current node
   const currentNode = nodes.find((n) => n.id === session.current_node_id);
-  if (!currentNode) return;
+  if (!currentNode) {
+    // The flow was edited and the paused-on node removed; the session can
+    // never advance, so settle it instead of leaving it active forever.
+    await cancelUnresumableSession(
+      supabase,
+      session.id,
+      `node ${session.current_node_id} no longer exists in flow ${session.flow_id}`
+    );
+    return;
+  }
 
   // Get next node after the current one
   const nextEdge = edges.find((e) => e.source === currentNode.id);
@@ -200,6 +220,18 @@ export async function resumeSession(
   }
 
   await traverseNodes(supabase, session.id, nextNode, nodes, edges, context, 0);
+}
+
+async function cancelUnresumableSession(
+  supabase: SupabaseClient<Database>,
+  sessionId: string,
+  reason: string
+) {
+  console.error(`Cancelling flow session ${sessionId}: ${reason}`);
+  await supabase
+    .from("flow_sessions")
+    .update({ status: "cancelled" })
+    .eq("id", sessionId);
 }
 
 async function traverseNodes(
