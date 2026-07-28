@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { resumeSession } from "@/lib/flow-engine/engine";
+import { FlowLoadError, resumeSession } from "@/lib/flow-engine/engine";
 import type { Json } from "@/lib/types/database";
 
 /**
@@ -28,11 +28,17 @@ export async function GET(request: NextRequest) {
     .delete()
     .lt("received_at", new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
 
-  // Pick up pending jobs that are due
+  // Pick up pending jobs that are due, plus 'processing' jobs whose claim is
+  // stale: if the claim UPDATE commits but the response is lost, nothing else
+  // ever re-reads that status and the job would be stranded forever. Five
+  // minutes is far beyond any real processing time here.
+  const staleClaimCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { data: jobs, error } = await supabase
     .from("scheduled_jobs")
     .select("*")
-    .eq("status", "pending")
+    .or(
+      `status.eq.pending,and(status.eq.processing,claimed_at.lt.${staleClaimCutoff})`
+    )
     .lte("run_at", new Date().toISOString())
     .order("run_at", { ascending: true })
     .limit(20);
@@ -50,14 +56,25 @@ export async function GET(request: NextRequest) {
     // Matching attempts too makes this a CAS: once another run bumps attempts,
     // a stale snapshot can never re-claim the job, even after that run
     // requeues it as pending, so backoff and the attempt count are respected.
-    const { data: claimed } = await supabase
+    const { data: claimed, error: claimError } = await supabase
       .from("scheduled_jobs")
-      .update({ status: "processing", attempts: job.attempts + 1 })
+      .update({
+        status: "processing",
+        attempts: job.attempts + 1,
+        claimed_at: new Date().toISOString(),
+      })
       .eq("id", job.id)
-      .eq("status", "pending") // Optimistic lock
+      .eq("status", job.status) // Optimistic lock (pending, or stale-claim reclaim)
       .eq("attempts", job.attempts)
       .select();
 
+    if (claimError) {
+      // Unknown outcome: the UPDATE may have committed with only the response
+      // lost. Skip; if it did commit, the stale-claim reclaim above picks the
+      // job up again once claimed_at ages past the cutoff.
+      console.error(`Failed to claim job ${job.id}:`, claimError);
+      continue;
+    }
     if (!claimed || claimed.length === 0) continue; // Claim lost to another run
 
     try {
@@ -76,6 +93,20 @@ export async function GET(request: NextRequest) {
           .from("scheduled_jobs")
           .update({ status: "failed", last_error: errorMessage })
           .eq("id", job.id);
+        // Out of retries: a resume_flow session would otherwise sit active
+        // forever with no pending job. Settle it explicitly (non-load failures
+        // already cancelled it inside processJob; this is idempotent).
+        if (job.type === "resume_flow") {
+          const sessionId = (job.payload as { sessionId?: string } | null)
+            ?.sessionId;
+          if (sessionId) {
+            await supabase
+              .from("flow_sessions")
+              .update({ status: "cancelled" })
+              .eq("id", sessionId)
+              .eq("status", "active");
+          }
+        }
       } else {
         // Retry with backoff
         const backoffMs = Math.pow(2, job.attempts + 1) * 5000;
@@ -146,10 +177,16 @@ async function processJob(
           incomingMessage: {},
         });
       } catch (err) {
-        // resumeSession may have advanced current_node_id past the delay
-        // node before throwing; the retry would then hit the stale-node
-        // guard above and complete, stranding the session as active with
-        // no pending job. Cancel it so the failure is explicit.
+        // A FlowLoadError is thrown before resumeSession touches the session
+        // (current_node_id has not advanced), so the retry cannot hit the
+        // stale-node guard above; leave the session active and let the cron
+        // backoff retry recover from the transient flow-load failure.
+        if (err instanceof FlowLoadError) throw err;
+
+        // Any other throw may have advanced current_node_id past the delay
+        // node; the retry would then hit the stale-node guard above and
+        // complete, stranding the session as active with no pending job.
+        // Cancel it so the failure is explicit.
         await supabase
           .from("flow_sessions")
           .update({ status: "cancelled" })

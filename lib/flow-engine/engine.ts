@@ -129,6 +129,10 @@ export async function executeFlow(
 
 const MAX_TRAVERSAL_DEPTH = 50;
 
+// Thrown before resumeSession touches the session (current_node_id has not
+// advanced), so callers may retry without cancelling the session.
+export class FlowLoadError extends Error {}
+
 export async function resumeSession(
   supabase: SupabaseClient<Database>,
   session: Database["public"]["Tables"]["flow_sessions"]["Row"],
@@ -142,13 +146,19 @@ export async function resumeSession(
 
   if (!flow) {
     // postgrest-js swallows transient failures into { data: null, error }, it
-    // does not throw. Returning silently here would strand the session active
-    // with no pending job (the cron marks the resume job completed), so settle
-    // it as cancelled to make the failure explicit.
+    // does not throw. Only PGRST116 (zero rows) means the flow row is genuinely
+    // gone; anything else is a transient DB/network blip, so throw and let the
+    // caller recover (cron retry with backoff, or the contact's next message on
+    // the webhook path) instead of permanently cancelling the session.
+    if (flowError && flowError.code !== "PGRST116") {
+      throw new FlowLoadError(
+        `flow ${session.flow_id} could not be loaded: ${flowError.message}`
+      );
+    }
     await cancelUnresumableSession(
       supabase,
       session.id,
-      `flow ${session.flow_id} could not be loaded${flowError ? `: ${flowError.message}` : ""}`
+      `flow ${session.flow_id} no longer exists`
     );
     return;
   }

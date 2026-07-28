@@ -815,6 +815,7 @@ export interface Database {
           status: JobStatus;
           attempts: number;
           last_error: string | null;
+          claimed_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -825,12 +826,14 @@ export interface Database {
           status?: JobStatus;
           attempts?: number;
           last_error?: string | null;
+          claimed_at?: string | null;
           created_at?: string;
         };
         Update: {
           status?: JobStatus;
           attempts?: number;
           last_error?: string | null;
+          claimed_at?: string | null;
         };
         Relationships: [];
       };
