@@ -29,6 +29,14 @@ export async function executeFlow(
   // outputs even when the trigger passed none (e.g. DM-triggered flows).
   context.variables ??= {};
 
+  // Seed {{message}} from the incoming message text so the variable offered in
+  // the builder resolves in production, not just in the simulator (which seeds
+  // it itself). Guarded so cron resumes with an empty incomingMessage don't
+  // clobber a previously stored value.
+  if (context.incomingMessage.text) {
+    context.variables.message ??= context.incomingMessage.text;
+  }
+
   // Check for active session waiting for input
   const { data: activeSession } = await supabase
     .from("flow_sessions")
@@ -162,6 +170,11 @@ async function resumeSession(
   }
 
   context.variables = (session.variables as Record<string, string>) || {};
+
+  // The resume is driven by a fresh reply; make {{message}} reflect it.
+  if (context.incomingMessage.text) {
+    context.variables.message = context.incomingMessage.text;
+  }
 
   // Update session
   await supabase
