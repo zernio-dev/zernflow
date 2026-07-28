@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { Plus, X, GripVertical, Image, Type, MousePointer, MessageCircle, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,17 +47,38 @@ interface SendMessagePanelData {
 interface SendMessagePanelProps {
   data: Record<string, unknown>;
   onChange: (data: Record<string, unknown>) => void;
+  availableVariables?: string[];
 }
 
-function VariableHint() {
+function VariablePicker({
+  variables,
+  onInsert,
+}: {
+  variables: string[];
+  onInsert: (variable: string) => void;
+}) {
   return (
-    <p className="text-[11px] text-muted-foreground/60">
-      Use {"{{variable}}"} for dynamic content
-    </p>
+    <div className="mt-1.5">
+      <p className="text-[11px] text-muted-foreground/60">
+        Click to insert a variable:
+      </p>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {variables.map((variable) => (
+          <button
+            key={variable}
+            type="button"
+            onClick={() => onInsert(variable)}
+            className="rounded px-1.5 py-0.5 font-mono text-[11px] font-medium text-blue-500 hover:bg-blue-50"
+          >
+            {`{{${variable}}}`}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
-export function SendMessagePanel({ data: rawData, onChange }: SendMessagePanelProps) {
+export function SendMessagePanel({ data: rawData, onChange, availableVariables }: SendMessagePanelProps) {
   const data = rawData as SendMessagePanelData;
   const messages = data.messages || [];
 
@@ -91,6 +112,7 @@ export function SendMessagePanel({ data: rawData, onChange }: SendMessagePanelPr
           onChange={(updated) => updateMessage(msgIndex, updated)}
           onRemove={() => removeMessage(msgIndex)}
           canRemove={messages.length > 1}
+          availableVariables={availableVariables}
         />
       ))}
 
@@ -129,14 +151,37 @@ function MessageEditor({
   onChange,
   onRemove,
   canRemove,
+  availableVariables,
 }: {
   index: number;
   message: Message;
   onChange: (m: Message) => void;
   onRemove: () => void;
   canRemove: boolean;
+  availableVariables?: string[];
 }) {
   const isCarouselMode = !!message.carousel;
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const insertVariable = useCallback(
+    (variable: string) => {
+      const token = `{{${variable}}}`;
+      const textarea = textareaRef.current;
+      const text = message.text || "";
+      const caret = textarea?.selectionStart ?? text.length;
+      onChange({
+        ...message,
+        text: text.slice(0, caret) + token + text.slice(caret),
+      });
+      // Restore focus and place the caret after the inserted token
+      requestAnimationFrame(() => {
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(caret + token.length, caret + token.length);
+      });
+    },
+    [message, onChange]
+  );
 
   const toggleMode = useCallback(() => {
     if (isCarouselMode) {
@@ -265,13 +310,23 @@ function MessageEditor({
                 <label className="text-xs font-medium text-muted-foreground">Text</label>
               </div>
               <textarea
+                ref={textareaRef}
                 value={message.text || ""}
                 onChange={(e) => onChange({ ...message, text: e.target.value })}
-                placeholder="Type your message... Use {{name}} for variables"
+                placeholder="Type your message... Insert variables below"
                 rows={3}
                 className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
-              <VariableHint />
+              {availableVariables && availableVariables.length > 0 ? (
+                <VariablePicker
+                  variables={availableVariables}
+                  onInsert={insertVariable}
+                />
+              ) : (
+                <p className="text-[11px] text-muted-foreground/60">
+                  Use {"{{variable}}"} for dynamic content
+                </p>
+              )}
             </div>
 
             {/* Media (image / video / audio) */}

@@ -141,6 +141,12 @@ export interface AiResponseNodeData {
   temperature: number;
   maxTokens: number;
   contextMessages: number;
+  /**
+   * The generated text is always stored in the ai_response variable. When false,
+   * the node ONLY stores it (no send), so a later Send Message node can use
+   * {{ai_response}} without double-sending. Defaults to true for back-compat.
+   */
+  sendDirectly?: boolean;
 }
 
 export interface EnrollSequenceNodeData {

@@ -328,6 +328,8 @@ export function simulateFlow(
       }
 
       case "aiResponse": {
+        // Placeholder so downstream {{ai_response}} interpolates in the dry run
+        variables.ai_response = "[AI response]";
         steps.push({
           nodeId: node.id,
           nodeType: "aiResponse",

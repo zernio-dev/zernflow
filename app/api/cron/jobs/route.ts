@@ -104,6 +104,7 @@ async function processJob(
         nodeId: string;
         lateConversationId?: string | null;
         lateAccountId?: string | null;
+        variables?: Record<string, string> | null;
       };
 
       // Check if session is still active
@@ -125,6 +126,7 @@ async function processJob(
         workspaceId: payload.workspaceId,
         lateConversationId: payload.lateConversationId || undefined,
         lateAccountId: payload.lateAccountId || undefined,
+        variables: payload.variables || undefined,
         incomingMessage: {},
       });
       break;

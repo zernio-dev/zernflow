@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/types/database";
+import type { Database, Json } from "@/lib/types/database";
 import type {
   FlowNode,
   FlowEdge,
@@ -25,6 +25,10 @@ export async function executeFlow(
   supabase: SupabaseClient<Database>,
   context: FlowExecutionContext
 ) {
+  // Ensure variables always exists so nodes (aiResponse, httpRequest) can write
+  // outputs even when the trigger passed none (e.g. DM-triggered flows).
+  context.variables ??= {};
+
   // Check for active session waiting for input
   const { data: activeSession } = await supabase
     .from("flow_sessions")
@@ -216,6 +220,15 @@ async function traverseNodes(
 
   // Execute the node
   const result = await executeNode(supabase, node, context, sessionId);
+
+  // Persist variables written by output-producing nodes so they survive
+  // pauses (resumeSession reloads them from the session row).
+  if (node.type === "aiResponse" || node.type === "httpRequest") {
+    await supabase
+      .from("flow_sessions")
+      .update({ variables: (context.variables ?? {}) as Json })
+      .eq("id", sessionId);
+  }
 
   // If the node pauses execution (delay, wait for input, human takeover), stop
   if (result === "pause") return;
@@ -605,6 +618,7 @@ async function executeDelay(
       workspaceId: context.workspaceId,
       lateConversationId: context.lateConversationId || null,
       lateAccountId: context.lateAccountId || null,
+      variables: context.variables || {},
     },
     run_at: runAt,
   });

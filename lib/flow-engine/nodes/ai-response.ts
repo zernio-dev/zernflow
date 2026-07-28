@@ -90,30 +90,35 @@ export async function executeAiResponse(
 
     const text = result.text;
 
-    // Send via Zernio REST API (same pattern as executeSendMessage)
-    const response = await zernio.messages.sendInboxMessage({
-      path: { conversationId: lateConversationId },
-      body: { accountId: lateAccountId, message: text },
-    });
+    // Expose the generated text to downstream nodes as {{ai_response}}
+    context.variables = { ...(context.variables ?? {}), ai_response: text };
 
-    // Store outbound message
-    await supabase.from("messages").insert({
-      conversation_id: context.conversationId,
-      direction: "outbound",
-      text,
-      attachments: null,
-      sent_by_flow_id: context.flowId,
-      sent_by_node_id: null,
-      platform_message_id: response.data?.data?.messageId || null,
-      status: "sent",
-    });
+    if (data.sendDirectly !== false) {
+      // Send via Zernio REST API (same pattern as executeSendMessage)
+      const response = await zernio.messages.sendInboxMessage({
+        path: { conversationId: lateConversationId },
+        body: { accountId: lateAccountId, message: text },
+      });
 
-    await supabase.from("analytics_events").insert({
-      workspace_id: context.workspaceId,
-      flow_id: context.flowId,
-      contact_id: context.contactId,
-      event_type: "message_sent",
-    });
+      // Store outbound message
+      await supabase.from("messages").insert({
+        conversation_id: context.conversationId,
+        direction: "outbound",
+        text,
+        attachments: null,
+        sent_by_flow_id: context.flowId,
+        sent_by_node_id: null,
+        platform_message_id: response.data?.data?.messageId || null,
+        status: "sent",
+      });
+
+      await supabase.from("analytics_events").insert({
+        workspace_id: context.workspaceId,
+        flow_id: context.flowId,
+        contact_id: context.contactId,
+        event_type: "message_sent",
+      });
+    }
   } catch (error) {
     console.error("Failed to generate or send AI response:", error);
 

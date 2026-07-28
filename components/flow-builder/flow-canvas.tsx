@@ -423,6 +423,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
         {selectedNode && !versionPanelOpen && !testPanelOpen && (
           <NodeConfigSidebar
             node={selectedNode}
+            nodes={nodes}
             onChange={onNodeDataChange}
             onClose={closeSidebar}
             onDelete={deleteNode}

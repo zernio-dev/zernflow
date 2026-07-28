@@ -14,9 +14,36 @@ import { AiResponsePanel } from "./AiResponsePanel";
 
 interface NodeConfigSidebarProps {
   node: Node;
+  nodes: Node[];
   onChange: (nodeId: string, data: Record<string, unknown>) => void;
   onClose: () => void;
   onDelete: (nodeId: string) => void;
+}
+
+function getFlowVariables(nodes: Node[]): string[] {
+  const variables = ["message"];
+
+  const triggerNode = nodes.find((n) => n.type === "trigger");
+  const triggerType = (triggerNode?.data as Record<string, unknown> | undefined)
+    ?.triggerType as string | undefined;
+  if (triggerType === "comment_keyword") {
+    variables.push("comment_id", "comment_text", "commenter_name", "post_id");
+  }
+
+  if (nodes.some((n) => n.type === "aiResponse")) {
+    variables.push("ai_response");
+  }
+
+  for (const n of nodes) {
+    if (n.type !== "httpRequest") continue;
+    const responseVariable = (n.data as Record<string, unknown>)
+      .responseVariable as string | undefined;
+    if (responseVariable && !variables.includes(responseVariable)) {
+      variables.push(responseVariable);
+    }
+  }
+
+  return variables;
 }
 
 const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: string; borderColor: string }> = {
@@ -58,7 +85,7 @@ const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: s
   },
 };
 
-export function NodeConfigSidebar({ node, onChange, onClose, onDelete }: NodeConfigSidebarProps) {
+export function NodeConfigSidebar({ node, nodes, onChange, onClose, onDelete }: NodeConfigSidebarProps) {
   const nodeType = node.type || "action";
   const config = nodeTypeConfig[nodeType] || nodeTypeConfig.action;
   const Icon = config.icon;
@@ -94,7 +121,13 @@ export function NodeConfigSidebar({ node, onChange, onClose, onDelete }: NodeCon
       case "trigger":
         return <TriggerPanel data={data} onChange={handleChange} />;
       case "sendMessage":
-        return <SendMessagePanel data={data} onChange={handleChange} />;
+        return (
+          <SendMessagePanel
+            data={data}
+            onChange={handleChange}
+            availableVariables={getFlowVariables(nodes)}
+          />
+        );
       case "condition":
         return <ConditionPanel data={data} onChange={handleChange} />;
       case "delay":

@@ -13,6 +13,7 @@ interface AiResponsePanelData {
   temperature?: number;
   maxTokens?: number;
   contextMessages?: number;
+  sendDirectly?: boolean;
   [key: string]: unknown;
 }
 
@@ -140,6 +141,24 @@ export function AiResponsePanel({ data: rawData, onChange }: AiResponsePanelProp
         />
         <p className="mt-1 text-[11px] text-muted-foreground/60">
           How many past messages to include as context for the AI.
+        </p>
+      </div>
+
+      {/* Send Directly */}
+      <div>
+        <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={data.sendDirectly ?? true}
+            onChange={(e) => onChange({ ...data, sendDirectly: e.target.checked })}
+            className="h-3.5 w-3.5 rounded border-border text-blue-500 focus:ring-blue-500"
+          />
+          Send response automatically
+        </label>
+        <p className="mt-1 text-[11px] text-muted-foreground/60">
+          The generated response is always available to later nodes as{" "}
+          {"{{ai_response}}"}. Turn this off to only store it and send it
+          yourself with a Send Message node.
         </p>
       </div>
     </div>
