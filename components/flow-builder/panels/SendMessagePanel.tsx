@@ -60,7 +60,8 @@ function VariablePicker({
   return (
     <div className="mt-1.5">
       <p className="text-[11px] text-muted-foreground/60">
-        Click to insert a variable:
+        Click to insert a variable. Dot paths like {"{{myvar.data.name}}"} read
+        fields from JSON responses.
       </p>
       <div className="mt-1 flex flex-wrap gap-1.5">
         {variables.map((variable) => (
