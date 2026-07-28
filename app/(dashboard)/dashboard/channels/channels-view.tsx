@@ -180,6 +180,7 @@ export function ChannelsView({
   async function handleDelete() {
     if (!channelToDelete) return;
     const id = channelToDelete.id;
+    setChannelToDelete(null);
     setDeletingId(id);
 
     try {
