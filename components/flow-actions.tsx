@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Download, Loader2, GitBranch, FileJson, X } from "lucide-react";
+import { Upload, Download, Loader2, GitBranch, FileJson, X, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { Json } from "@/lib/types/database";
 
 interface FlowExportData {
@@ -63,6 +64,76 @@ export function ExportFlowButton({
     >
       <Download className="h-3.5 w-3.5" />
     </button>
+  );
+}
+
+export function DeleteFlowButton({
+  flow,
+}: {
+  flow: { id: string; name: string };
+}) {
+  const router = useRouter();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+
+    try {
+      const res = await fetch(`/api/v1/flows/${flow.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        console.error("Failed to delete flow");
+        alert("Failed to delete flow. Please try again.");
+        return;
+      }
+
+      router.refresh();
+    } catch (err) {
+      console.error("Failed to delete flow:", err);
+      alert("Failed to delete flow. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    // The button lives inside the flow card's <Link>; stop clicks (including
+    // clicks inside the dialog, which renders in the same DOM subtree) from
+    // bubbling into card navigation.
+    <span
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
+      <button
+        onClick={() => setConfirmOpen(true)}
+        disabled={deleting}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground/60 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+        aria-label={`Delete ${flow.name}`}
+      >
+        {deleting ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Trash2 className="h-3.5 w-3.5" />
+        )}
+      </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete flow"
+        message={`"${flow.name}" and its triggers, versions, and run history will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          setConfirmOpen(false);
+          handleDelete();
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </span>
   );
 }
 

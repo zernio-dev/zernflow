@@ -19,8 +19,9 @@ import "@xyflow/react/dist/style.css";
 
 import { useCallback, useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Rocket, Loader2, History, Play, Download } from "lucide-react";
+import { ArrowLeft, Save, Rocket, Loader2, History, Play, Download, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { createClient } from "@/lib/supabase/client";
 import type { Database, FlowStatus, Json } from "@/lib/types/database";
 
@@ -97,6 +98,8 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   const [versionPanelOpen, setVersionPanelOpen] = useState(false);
   const [testPanelOpen, setTestPanelOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const selectedNode = selectedNodeId
     ? nodes.find((n) => n.id === selectedNodeId) || null
@@ -234,6 +237,27 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
   );
 
   const handleSave = useCallback(() => saveFlow(), [saveFlow]);
+  const handleDelete = useCallback(async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/flows/${flow.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        console.error("Failed to delete flow");
+        setSaveError("Failed to delete");
+        setTimeout(() => setSaveError(null), 3000);
+        setDeleting(false);
+        return;
+      }
+      router.push("/dashboard/flows");
+    } catch (err) {
+      console.error("Failed to delete flow:", err);
+      setSaveError("Failed to delete");
+      setTimeout(() => setSaveError(null), 3000);
+      setDeleting(false);
+    }
+  }, [flow.id, router]);
   const handlePublish = useCallback(async () => {
     setPublishing(true);
     try {
@@ -386,6 +410,30 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
             )}
             Publish
           </button>
+          <button
+            onClick={() => setConfirmDelete(true)}
+            disabled={deleting}
+            className="rounded-lg p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+            title="Delete flow"
+          >
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+          </button>
+          <ConfirmDialog
+            open={confirmDelete}
+            title="Delete flow"
+            message={`"${flowName}" and its triggers, versions, and run history will be permanently deleted. This cannot be undone.`}
+            confirmLabel="Delete"
+            destructive
+            onConfirm={() => {
+              setConfirmDelete(false);
+              handleDelete();
+            }}
+            onCancel={() => setConfirmDelete(false)}
+          />
         </div>
       </div>
 

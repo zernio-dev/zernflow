@@ -2,7 +2,7 @@ import { getWorkspace } from "@/lib/workspace";
 import Link from "next/link";
 import { GitBranch, Sparkles, Plug } from "lucide-react";
 import { CreateFlowButton } from "@/components/create-flow-button";
-import { ImportFlowButton, ExportFlowButton } from "@/components/flow-actions";
+import { ImportFlowButton, ExportFlowButton, DeleteFlowButton } from "@/components/flow-actions";
 import type { FlowStatus } from "@/lib/types/database";
 
 const statusConfig: Record<FlowStatus, { label: string; classes: string }> = {
@@ -138,7 +138,10 @@ export default async function FlowsPage() {
                       </p>
                     </div>
                   </div>
-                  <ExportFlowButton flow={flow} />
+                  <div className="flex items-center gap-1">
+                    <ExportFlowButton flow={flow} />
+                    <DeleteFlowButton flow={flow} />
+                  </div>
                 </div>
                 <p className="mt-4 text-xs text-muted-foreground">
                   Updated {formatDate(flow.updated_at)}
