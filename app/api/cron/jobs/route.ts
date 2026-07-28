@@ -31,13 +31,16 @@ export async function GET(request: NextRequest) {
   // Pick up pending jobs that are due, plus 'processing' jobs whose claim is
   // stale: if the claim UPDATE commits but the response is lost, nothing else
   // ever re-reads that status and the job would be stranded forever. Five
-  // minutes is far beyond any real processing time here.
+  // minutes is far beyond any real processing time here. The is.null arm
+  // covers rows stranded before migration 00014 added claimed_at (a lt.
+  // comparison is NULL-hostile and would skip them forever); every claim now
+  // stamps claimed_at, so NULL + processing can only mean a pre-fix strand.
   const staleClaimCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { data: jobs, error } = await supabase
     .from("scheduled_jobs")
     .select("*")
     .or(
-      `status.eq.pending,and(status.eq.processing,claimed_at.lt.${staleClaimCutoff})`
+      `status.eq.pending,and(status.eq.processing,or(claimed_at.lt.${staleClaimCutoff},claimed_at.is.null))`
     )
     .lte("run_at", new Date().toISOString())
     .order("run_at", { ascending: true })
