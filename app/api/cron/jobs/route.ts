@@ -12,6 +12,22 @@ import type { Json } from "@/lib/types/database";
 // session must be cancelled and the job is the only evidence of the crash).
 class SessionCancelError extends Error {}
 
+// Thrown when a reclaimed job finds its session moved past the delay node and
+// not parked, but WRITTEN TO within the stale window: either a concurrent
+// webhook resume is mid-traversal (traverseNodes stamps current_node_id, and
+// the updated_at trigger fires, on every node) or a resume crashed moments
+// ago. The two are indistinguishable right now, and cancelling would kill a
+// live run, so the job is requeued past the window and the next look decides.
+class SessionRecheckError extends Error {}
+
+// An invocation that has not written anything for this long is provably dead:
+// used both to reclaim stale job claims and to age flow_sessions.updated_at.
+const STALE_INVOCATION_MS = 5 * 60 * 1000;
+
+function wasSessionWrittenRecently(updatedAt: string): boolean {
+  return new Date(updatedAt).getTime() > Date.now() - STALE_INVOCATION_MS;
+}
+
 /**
  * Cron job handler that processes scheduled jobs.
  * Call via Vercel Cron or external cron every 10-30 seconds.
@@ -45,7 +61,7 @@ export async function GET(request: NextRequest) {
   // migration 00015's backfill, or claims by a not-yet-redeployed invocation
   // during a deploy; a lt. comparison is NULL-hostile and would skip them
   // forever). Those rows are NOT processed directly, only stamped, see below.
-  const staleClaimCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const staleClaimCutoff = new Date(Date.now() - STALE_INVOCATION_MS).toISOString();
   const { data: jobs, error } = await supabase
     .from("scheduled_jobs")
     .select("*")
@@ -138,7 +154,20 @@ export async function GET(request: NextRequest) {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      if (job.attempts + 1 >= maxAttempts || err instanceof SessionCancelError) {
+      if (err instanceof SessionRecheckError) {
+        // Requeue past the recency window and undo the claim's attempts bump:
+        // a recheck is not a failure, and letting rechecks exhaust attempts
+        // would route a possibly-live session into the terminal cancel below.
+        await supabase
+          .from("scheduled_jobs")
+          .update({
+            status: "pending",
+            run_at: new Date(Date.now() + STALE_INVOCATION_MS).toISOString(),
+            attempts: job.attempts,
+            last_error: errorMessage,
+          })
+          .eq("id", job.id);
+      } else if (job.attempts + 1 >= maxAttempts || err instanceof SessionCancelError) {
         await failJobAndSettleSession({ supabase, job, errorMessage });
       } else {
         // Retry with backoff
@@ -188,6 +217,11 @@ async function failJobAndSettleSession({
     .update({ status: "failed", last_error: errorMessage })
     .eq("id", job.id);
 
+  if (job.type === "send_broadcast") {
+    await settleBroadcastRecipientAsFailed({ supabase, job, errorMessage });
+    return;
+  }
+
   if (job.type !== "resume_flow") return;
   const payload = job.payload as { sessionId?: string; nodeId?: string } | null;
   const sessionId = payload?.sessionId;
@@ -196,7 +230,7 @@ async function failJobAndSettleSession({
   if (onlyIfStuckOnDelayNode) {
     const { data: session, error: sessionError } = await supabase
       .from("flow_sessions")
-      .select("current_node_id, waiting_for_input, waiting_until, status")
+      .select("current_node_id, waiting_for_input, waiting_until, status, updated_at")
       .eq("id", sessionId)
       .single();
     if (sessionError || !session) {
@@ -224,6 +258,15 @@ async function failJobAndSettleSession({
         );
         return;
       }
+      // Written to within the stale window: a concurrent resume may be
+      // mid-traversal (see SessionRecheckError). Do not cancel blind; the
+      // job is already failed, so log the possible strand instead.
+      if (wasSessionWrittenRecently(session.updated_at)) {
+        console.error(
+          `Session ${sessionId} was written recently after job ${job.id} exhausted retries; skipping cancel, session may be left active`
+        );
+        return;
+      }
     }
   }
 
@@ -242,6 +285,49 @@ async function failJobAndSettleSession({
       settleError
     );
   }
+}
+
+// A send_broadcast job out of retries would otherwise leave its recipient
+// stuck in 'pending'/'sending' forever (no other job touches the row, and
+// settleBroadcastIfDone counts both as unfinished, so the broadcast would
+// stay 'sending' too). Settle the recipient as failed; best-effort, the job
+// is already marked failed.
+async function settleBroadcastRecipientAsFailed({
+  supabase,
+  job,
+  errorMessage,
+}: {
+  supabase: Awaited<ReturnType<typeof createServiceClient>>;
+  job: { id: string; payload: Json };
+  errorMessage: string;
+}) {
+  const payload = job.payload as {
+    broadcastId?: string;
+    recipientId?: string;
+  } | null;
+  if (!payload?.broadcastId || !payload?.recipientId) return;
+
+  const { data: settled, error } = await supabase
+    .from("broadcast_recipients")
+    .update({ status: "failed", error_message: errorMessage })
+    .eq("id", payload.recipientId)
+    .in("status", ["pending", "sending"])
+    .select();
+  if (error) {
+    console.error(
+      `Failed to settle broadcast recipient ${payload.recipientId} after job ${job.id} exhausted retries; recipient may be left unfinished:`,
+      error
+    );
+    return;
+  }
+  if (settled && settled.length > 0) {
+    await supabase.rpc("increment_broadcast_failed", {
+      b_id: payload.broadcastId,
+    });
+  }
+  // Run even when no row matched: a previous invocation may have settled the
+  // recipient but died before settling the broadcast.
+  await settleBroadcastIfDone(supabase, payload.broadcastId);
 }
 
 // A session that moved past a delay node is healthy only if the resume that
@@ -333,6 +419,16 @@ async function processJob(
           excludeJobId: job.id,
         });
         if (parked) return;
+        // Not parked, but written to within the stale window: a concurrent
+        // webhook resume may be mid-traversal (it clears waiting_for_input
+        // before traversing, so the snapshot above shows no markers even for
+        // a healthy live run). Cancelling now would kill it; look again once
+        // the window has passed and the state is decidable.
+        if (wasSessionWrittenRecently(session.updated_at)) {
+          throw new SessionRecheckError(
+            `session ${payload.sessionId} moved past delay node ${payload.nodeId} and is not parked, but was written recently; a concurrent resume may be mid-traversal`
+          );
+        }
         // This reclaimed job is the only evidence of the crash; route to the
         // failed + settle branch (which cancels the session) instead of
         // completing the job and discarding it.

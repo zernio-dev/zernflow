@@ -984,10 +984,14 @@ async function completeSession(
   supabase: SupabaseClient<Database>,
   sessionId: string
 ) {
+  // Only an active session can complete: a concurrent cancel (e.g. the cron's
+  // stranded-session settle) must not be overwritten to completed. Zero rows
+  // matched also skips the flow_completed analytics event below.
   const { data: session } = await supabase
     .from("flow_sessions")
     .update({ status: "completed" })
     .eq("id", sessionId)
+    .eq("status", "active")
     .select("flow_id, contact_id, channel_id")
     .single();
 
