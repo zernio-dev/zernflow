@@ -66,11 +66,12 @@ export async function GET(request: NextRequest) {
     // cannot fire; without this guard the stale-claim reclaim would re-run
     // such a poison job forever, incrementing attempts unboundedly.
     if (job.attempts >= maxAttempts) {
-      await failJobAndSettleSession(
+      await failJobAndSettleSession({
         supabase,
         job,
-        `Exceeded ${maxAttempts} attempts (stale claim reclaimed)`
-      );
+        errorMessage: `Exceeded ${maxAttempts} attempts (stale claim reclaimed)`,
+        onlyIfStuckOnDelayNode: true,
+      });
       failed++;
       continue;
     }
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
       const errorMessage = err instanceof Error ? err.message : String(err);
 
       if (job.attempts + 1 >= maxAttempts || err instanceof SessionCancelError) {
-        await failJobAndSettleSession(supabase, job, errorMessage);
+        await failJobAndSettleSession({ supabase, job, errorMessage });
       } else {
         // Retry with backoff
         const backoffMs = Math.pow(2, job.attempts + 1) * 5000;
@@ -136,25 +137,43 @@ export async function GET(request: NextRequest) {
 // Marks a job out of retries as failed. A failed resume_flow job would leave
 // its session sitting active forever with no pending job, so settle it too
 // (idempotent: non-load failures already cancelled it inside processJob).
-async function failJobAndSettleSession(
-  supabase: Awaited<ReturnType<typeof createServiceClient>>,
-  job: { id: string; type: string; payload: Json },
-  errorMessage: string
-) {
+// onlyIfStuckOnDelayNode (the attempts-exhausted reclaim path) additionally
+// gates the cancel on current_node_id still being the job's delay node: a
+// reclaimed job whose resume actually succeeded before its invocation died
+// (or a duplicate from the old restart bug) leaves the session healthily
+// waiting at a later node, and cancelling it would kill the run mid-way. The
+// catch path must NOT gate: a SessionCancelError re-attempts a cancel for a
+// session whose current_node_id may already have advanced.
+async function failJobAndSettleSession({
+  supabase,
+  job,
+  errorMessage,
+  onlyIfStuckOnDelayNode = false,
+}: {
+  supabase: Awaited<ReturnType<typeof createServiceClient>>;
+  job: { id: string; type: string; payload: Json };
+  errorMessage: string;
+  onlyIfStuckOnDelayNode?: boolean;
+}) {
   await supabase
     .from("scheduled_jobs")
     .update({ status: "failed", last_error: errorMessage })
     .eq("id", job.id);
 
   if (job.type !== "resume_flow") return;
-  const sessionId = (job.payload as { sessionId?: string } | null)?.sessionId;
+  const payload = job.payload as { sessionId?: string; nodeId?: string } | null;
+  const sessionId = payload?.sessionId;
   if (!sessionId) return;
 
-  const { error: settleError } = await supabase
+  let settle = supabase
     .from("flow_sessions")
     .update({ status: "cancelled" })
     .eq("id", sessionId)
     .eq("status", "active");
+  if (onlyIfStuckOnDelayNode && payload?.nodeId) {
+    settle = settle.eq("current_node_id", payload.nodeId);
+  }
+  const { error: settleError } = await settle;
   if (settleError) {
     // The job is already 'failed' and never re-fetched, so this session stays
     // active with no pending job. Requeuing would not help: the retry hits the
