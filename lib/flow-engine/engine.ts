@@ -129,8 +129,8 @@ export async function executeFlow(
 
 const MAX_TRAVERSAL_DEPTH = 50;
 
-// Thrown before resumeSession touches the session (current_node_id has not
-// advanced), so callers may retry without cancelling the session.
+// Thrown before resumeSession advances current_node_id, so callers may retry
+// without cancelling the session.
 export class FlowLoadError extends Error {}
 
 export async function resumeSession(
@@ -238,10 +238,19 @@ async function cancelUnresumableSession(
   reason: string
 ) {
   console.error(`Cancelling flow session ${sessionId}: ${reason}`);
-  await supabase
+  const { error } = await supabase
     .from("flow_sessions")
     .update({ status: "cancelled" })
     .eq("id", sessionId);
+  if (error) {
+    // postgrest swallows network failures into { error }, so an unchecked
+    // cancel can silently no-op and strand the session as active forever.
+    // current_node_id has not advanced, so FlowLoadError lets callers retry
+    // and re-attempt the cancel.
+    throw new FlowLoadError(
+      `session ${sessionId} could not be cancelled (${reason}): ${error.message}`
+    );
+  }
 }
 
 async function traverseNodes(

@@ -58,8 +58,23 @@ export async function GET(request: NextRequest) {
 
   let processed = 0;
   let failed = 0;
+  const maxAttempts = 3;
 
   for (const job of jobs) {
+    // A hung invocation (e.g. an httpRequest node on a never-responding
+    // endpoint) never reaches the catch block, so the attempts cap there
+    // cannot fire; without this guard the stale-claim reclaim would re-run
+    // such a poison job forever, incrementing attempts unboundedly.
+    if (job.attempts >= maxAttempts) {
+      await failJobAndSettleSession(
+        supabase,
+        job,
+        `Exceeded ${maxAttempts} attempts (stale claim reclaimed)`
+      );
+      failed++;
+      continue;
+    }
+
     // Mark as processing; .select() returns the updated row so we can verify
     // the claim (overlapping cron runs would otherwise both process the job).
     // Matching attempts too makes this a CAS: once another run bumps attempts,
@@ -95,37 +110,9 @@ export async function GET(request: NextRequest) {
       processed++;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      const maxAttempts = 3;
 
       if (job.attempts + 1 >= maxAttempts || err instanceof SessionCancelError) {
-        await supabase
-          .from("scheduled_jobs")
-          .update({ status: "failed", last_error: errorMessage })
-          .eq("id", job.id);
-        // Out of retries: a resume_flow session would otherwise sit active
-        // forever with no pending job. Settle it explicitly (non-load failures
-        // already cancelled it inside processJob; this is idempotent).
-        if (job.type === "resume_flow") {
-          const sessionId = (job.payload as { sessionId?: string } | null)
-            ?.sessionId;
-          if (sessionId) {
-            const { error: settleError } = await supabase
-              .from("flow_sessions")
-              .update({ status: "cancelled" })
-              .eq("id", sessionId)
-              .eq("status", "active");
-            if (settleError) {
-              // The job is already 'failed' and never re-fetched, so this
-              // session stays active with no pending job. Requeuing would not
-              // help: the retry hits the stale-node guard in processJob and
-              // completes without cancelling. Log it so the strand is visible.
-              console.error(
-                `Failed to settle session ${sessionId} after job ${job.id} exhausted retries; session left active:`,
-                settleError
-              );
-            }
-          }
-        }
+        await failJobAndSettleSession(supabase, job, errorMessage);
       } else {
         // Retry with backoff
         const backoffMs = Math.pow(2, job.attempts + 1) * 5000;
@@ -144,6 +131,40 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ processed, failed, total: jobs.length });
+}
+
+// Marks a job out of retries as failed. A failed resume_flow job would leave
+// its session sitting active forever with no pending job, so settle it too
+// (idempotent: non-load failures already cancelled it inside processJob).
+async function failJobAndSettleSession(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  job: { id: string; type: string; payload: Json },
+  errorMessage: string
+) {
+  await supabase
+    .from("scheduled_jobs")
+    .update({ status: "failed", last_error: errorMessage })
+    .eq("id", job.id);
+
+  if (job.type !== "resume_flow") return;
+  const sessionId = (job.payload as { sessionId?: string } | null)?.sessionId;
+  if (!sessionId) return;
+
+  const { error: settleError } = await supabase
+    .from("flow_sessions")
+    .update({ status: "cancelled" })
+    .eq("id", sessionId)
+    .eq("status", "active");
+  if (settleError) {
+    // The job is already 'failed' and never re-fetched, so this session stays
+    // active with no pending job. Requeuing would not help: the retry hits the
+    // stale-node guard in processJob and completes without cancelling. Log it
+    // so the strand is visible.
+    console.error(
+      `Failed to settle session ${sessionId} after job ${job.id} exhausted retries; session left active:`,
+      settleError
+    );
+  }
 }
 
 async function processJob(
@@ -207,10 +228,10 @@ async function processJob(
           incomingMessage: {},
         });
       } catch (err) {
-        // A FlowLoadError is thrown before resumeSession touches the session
-        // (current_node_id has not advanced), so the retry cannot hit the
-        // stale-node guard above; leave the session active and let the cron
-        // backoff retry recover from the transient flow-load failure.
+        // A FlowLoadError is thrown before resumeSession advances
+        // current_node_id, so the retry cannot hit the stale-node guard
+        // above; leave the session active and let the cron backoff retry
+        // recover from the transient failure.
         if (err instanceof FlowLoadError) throw err;
 
         // Any other throw may have advanced current_node_id past the delay
@@ -246,13 +267,23 @@ async function processJob(
       };
 
       // Process individual broadcast recipient
-      const { data: recipient } = await supabase
+      const { data: recipient, error: recipientError } = await supabase
         .from("broadcast_recipients")
         .select("*, contacts(*), channels(*), broadcasts(*)")
         .eq("id", payload.recipientId)
         .single();
 
-      if (!recipient) return;
+      if (!recipient) {
+        // Only PGRST116 (zero rows) means the recipient row is genuinely
+        // gone; a transient failure must throw so the job retries instead of
+        // dropping the send and stranding the broadcast in 'sending'.
+        if (recipientError && recipientError.code !== "PGRST116") {
+          throw new Error(
+            `broadcast recipient ${payload.recipientId} could not be loaded: ${recipientError.message}`
+          );
+        }
+        return;
+      }
 
       // A 'sending' row means a previous invocation of this job died between
       // claiming the recipient and recording the outcome (the stale-claim
@@ -260,14 +291,24 @@ async function processJob(
       // reached the contact, so mark it failed instead of re-sending: a
       // duplicate customer-visible message is worse than a false failure.
       if (recipient.status === "sending") {
-        await supabase
+        const { data: settled, error: settleError } = await supabase
           .from("broadcast_recipients")
           .update({
             status: "failed",
             error_message: "Interrupted mid-send; delivery outcome unknown",
           })
           .eq("id", payload.recipientId)
-          .eq("status", "sending");
+          .eq("status", "sending")
+          .select();
+        if (settleError) {
+          // Unknown outcome: throw so the job retries; incrementing the
+          // failed counter now could count a recipient still stuck in
+          // 'sending', and completing the job would strand it forever.
+          throw new Error(
+            `failed to settle interrupted broadcast recipient ${payload.recipientId}: ${settleError.message}`
+          );
+        }
+        if (!settled || settled.length === 0) return; // Another run settled it
         await supabase.rpc("increment_broadcast_failed", {
           b_id: payload.broadcastId,
         });
