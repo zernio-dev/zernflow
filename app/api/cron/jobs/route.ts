@@ -128,18 +128,34 @@ async function processJob(
       // Resume from the node after the delay; resumeSession restores
       // variables from the session row and leaves {{message}} untouched
       // because incomingMessage is empty.
-      await resumeSession(supabase, session, {
-        triggerId: "",
-        flowId: session.flow_id,
-        channelId: payload.channelId,
-        contactId: payload.contactId,
-        conversationId: payload.conversationId,
-        workspaceId: payload.workspaceId,
-        lateConversationId: payload.lateConversationId || undefined,
-        lateAccountId: payload.lateAccountId || undefined,
-        variables: payload.variables || undefined,
-        incomingMessage: {},
-      });
+      try {
+        await resumeSession(supabase, session, {
+          triggerId: "",
+          flowId: session.flow_id,
+          channelId: payload.channelId,
+          contactId: payload.contactId,
+          conversationId: payload.conversationId,
+          workspaceId: payload.workspaceId,
+          lateConversationId: payload.lateConversationId || undefined,
+          lateAccountId: payload.lateAccountId || undefined,
+          variables: payload.variables || undefined,
+          incomingMessage: {},
+        });
+      } catch (err) {
+        // resumeSession may have advanced current_node_id past the delay
+        // node before throwing; the retry would then hit the stale-node
+        // guard above and complete, stranding the session as active with
+        // no pending job. Cancel it so the failure is explicit.
+        await supabase
+          .from("flow_sessions")
+          .update({ status: "cancelled" })
+          .eq("id", payload.sessionId);
+        console.error(
+          `Failed to resume flow session ${payload.sessionId} (flow ${session.flow_id}), session cancelled:`,
+          err
+        );
+        throw err;
+      }
       break;
     }
 
