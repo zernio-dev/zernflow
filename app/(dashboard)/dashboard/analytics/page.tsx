@@ -4,10 +4,11 @@ import { AnalyticsView } from "./analytics-view";
 export default async function AnalyticsPage() {
   const { workspace, supabase } = await getWorkspace();
 
+  const nowDate = new Date();
   const thirtyDaysAgo = new Date(
-    Date.now() - 30 * 24 * 60 * 60 * 1000
+    nowDate.getTime() - 30 * 24 * 60 * 60 * 1000
   ).toISOString();
-  const now = new Date().toISOString();
+  const now = nowDate.toISOString();
 
   // Fetch ALL initial analytics data in parallel on the server
   const [

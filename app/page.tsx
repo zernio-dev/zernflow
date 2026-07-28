@@ -324,7 +324,7 @@ export default function Home() {
               <p className="mt-4 text-base leading-relaxed text-gray-500">
                 ZernFlow is fully open source under the MIT license. Read every line of code,
                 self-host on your own infrastructure, or fork it and make it yours.
-                No "open core" tricks, no enterprise-only features behind a paywall.
+                No &ldquo;open core&rdquo; tricks, no enterprise-only features behind a paywall.
               </p>
               <p className="mt-3 text-base leading-relaxed text-gray-500">
                 Your automations, your contacts, your data. You own everything.

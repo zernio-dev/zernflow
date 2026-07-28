@@ -345,7 +345,7 @@ function SubscribeConfig({ data, onChange }: ActionSubPanelProps) {
         <div>
           <p className="text-sm font-medium text-foreground">I confirm this action</p>
           <p className="text-xs text-muted-foreground">
-            This action will affect the contact's subscription status
+            This action will affect the contact&apos;s subscription status
           </p>
         </div>
       </div>

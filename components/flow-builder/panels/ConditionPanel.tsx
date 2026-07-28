@@ -186,7 +186,7 @@ export function ConditionPanel({ data: rawData, onChange }: ConditionPanelProps)
 
       {conditions.length === 0 && (
         <p className="text-center text-xs text-muted-foreground">
-          Add conditions to create branching logic. Contacts matching the conditions go to the "Yes" path, others go to "No".
+          Add conditions to create branching logic. Contacts matching the conditions go to the &ldquo;Yes&rdquo; path, others go to &ldquo;No&rdquo;.
         </p>
       )}
     </div>

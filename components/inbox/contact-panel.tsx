@@ -51,14 +51,11 @@ export function ContactPanel({
   workspaceId: string;
   onClose: () => void;
 }) {
-  const [details, setDetails] = useState<ContactDetails | null>(null);
+  const [loadedDetails, setDetails] = useState<ContactDetails | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!contactId) {
-      setDetails(null);
-      return;
-    }
+    if (!contactId) return;
 
     async function loadContact() {
       setLoading(true);
@@ -112,6 +109,9 @@ export function ContactPanel({
   }, [contactId, workspaceId]);
 
   if (!contactId) return null;
+
+  const details =
+    loadedDetails?.contact.id === contactId ? loadedDetails : null;
 
   return (
     <div className="flex h-full w-80 flex-col border-l border-border bg-background">

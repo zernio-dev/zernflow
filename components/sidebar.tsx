@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import {
   GitBranch,
   MessageSquare,
@@ -32,6 +32,12 @@ interface WorkspaceItem {
   role: string;
 }
 
+function subscribeToThemeClass(callback: () => void) {
+  const observer = new MutationObserver(callback);
+  observer.observe(document.documentElement, { attributeFilter: ["class"] });
+  return () => observer.disconnect();
+}
+
 const navigation = [
   { name: "Flows", href: "/dashboard/flows", icon: GitBranch },
   { name: "Inbox", href: "/dashboard/inbox", icon: MessageSquare },
@@ -55,15 +61,14 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  const dark = useSyncExternalStore(
+    subscribeToThemeClass,
+    () => document.documentElement.classList.contains("dark"),
+    () => false
+  );
 
   function toggleTheme() {
     const next = !dark;
-    setDark(next);
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
   }
