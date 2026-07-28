@@ -3,10 +3,13 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { FlowLoadError, resumeSession } from "@/lib/flow-engine/engine";
 import type { Json } from "@/lib/types/database";
 
-// Thrown when a resume failed AND the cancel of its session also failed.
-// Requeuing would strand the session: the retry hits the stale-node guard
-// and completes the job. The handler routes this straight to the failed +
-// settle branch, which re-attempts the cancel.
+// Signals the handler to skip retry/backoff and route straight to the
+// failed + settle branch (which performs/re-attempts the session cancel).
+// Thrown when (a) a resume failed AND the cancel of its session also failed
+// (requeuing would strand the session: the retry hits the stale-node guard
+// and completes the job), or (b) a reclaimed job found its session stranded
+// by a resume invocation that died mid-traversal (retrying cannot help; the
+// session must be cancelled and the job is the only evidence of the crash).
 class SessionCancelError extends Error {}
 
 /**
@@ -38,9 +41,10 @@ export async function GET(request: NextRequest) {
   // stale: if the claim UPDATE commits but the response is lost, nothing else
   // ever re-reads that status and the job would be stranded forever. Five
   // minutes is far beyond any real processing time here. The is.null arm
-  // covers rows stranded before migration 00014 added claimed_at (a lt.
-  // comparison is NULL-hostile and would skip them forever); every claim now
-  // stamps claimed_at, so NULL + processing can only mean a pre-fix strand.
+  // covers rows claimed without a claimed_at stamp (strands from before
+  // migration 00015's backfill, or claims by a not-yet-redeployed invocation
+  // during a deploy; a lt. comparison is NULL-hostile and would skip them
+  // forever). Those rows are NOT processed directly, only stamped, see below.
   const staleClaimCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { data: jobs, error } = await supabase
     .from("scheduled_jobs")
@@ -61,6 +65,28 @@ export async function GET(request: NextRequest) {
   const maxAttempts = 3;
 
   for (const job of jobs) {
+    // A 'processing' row without claimed_at cannot be aged: it is either a
+    // pre-backfill strand or a live claim by an old-code invocation that
+    // never stamped claimed_at (deploy window). Processing it now could
+    // double-process against that live invocation (duplicate sends), so just
+    // start the staleness clock; the lt arm reclaims it next run once it is
+    // provably stale.
+    if (job.status === "processing" && !job.claimed_at) {
+      const { error: stampError } = await supabase
+        .from("scheduled_jobs")
+        .update({ claimed_at: new Date().toISOString() })
+        .eq("id", job.id)
+        .eq("status", "processing")
+        .is("claimed_at", null);
+      if (stampError) {
+        console.error(
+          `Failed to stamp claimed_at on unaged job ${job.id}:`,
+          stampError
+        );
+      }
+      continue;
+    }
+
     // A hung invocation (e.g. an httpRequest node on a never-responding
     // endpoint) never reaches the catch block, so the attempts cap there
     // cannot fire; without this guard the stale-claim reclaim would re-run
@@ -138,10 +164,12 @@ export async function GET(request: NextRequest) {
 // its session sitting active forever with no pending job, so settle it too
 // (idempotent: non-load failures already cancelled it inside processJob).
 // onlyIfStuckOnDelayNode (the attempts-exhausted reclaim path) additionally
-// gates the cancel on current_node_id still being the job's delay node: a
-// reclaimed job whose resume actually succeeded before its invocation died
-// (or a duplicate from the old restart bug) leaves the session healthily
-// waiting at a later node, and cancelling it would kill the run mid-way. The
+// gates the cancel on the session NOT being healthily parked: a reclaimed
+// job whose resume actually succeeded before its invocation died (or a
+// duplicate from the old restart bug) leaves the session waiting at a later
+// node, and cancelling it would kill the run mid-way. 'Moved past the delay
+// node' alone is NOT that proof (a resume that died mid-traversal also moved
+// past it), so the gate checks the recoverable-parking markers instead. The
 // catch path must NOT gate: a SessionCancelError re-attempts a cancel for a
 // session whose current_node_id may already have advanced.
 async function failJobAndSettleSession({
@@ -165,15 +193,45 @@ async function failJobAndSettleSession({
   const sessionId = payload?.sessionId;
   if (!sessionId) return;
 
-  let settle = supabase
+  if (onlyIfStuckOnDelayNode) {
+    const { data: session, error: sessionError } = await supabase
+      .from("flow_sessions")
+      .select("current_node_id, waiting_for_input, waiting_until, status")
+      .eq("id", sessionId)
+      .single();
+    if (sessionError || !session) {
+      // Unknown state: do not cancel blind (the session may be healthily
+      // waiting at a later node). Log so a possible strand stays visible.
+      console.error(
+        `Could not load session ${sessionId} to settle after job ${job.id} exhausted retries; session may be left active:`,
+        sessionError
+      );
+      return;
+    }
+    if (session.status !== "active") return;
+    if (payload?.nodeId && session.current_node_id !== payload.nodeId) {
+      try {
+        const parked = await isSessionParkedRecoverably({
+          supabase,
+          session: { id: sessionId, ...session },
+          excludeJobId: job.id,
+        });
+        if (parked) return;
+      } catch (err) {
+        console.error(
+          `Could not verify session ${sessionId} state after job ${job.id} exhausted retries; session may be left active:`,
+          err
+        );
+        return;
+      }
+    }
+  }
+
+  const { error: settleError } = await supabase
     .from("flow_sessions")
     .update({ status: "cancelled" })
     .eq("id", sessionId)
     .eq("status", "active");
-  if (onlyIfStuckOnDelayNode && payload?.nodeId) {
-    settle = settle.eq("current_node_id", payload.nodeId);
-  }
-  const { error: settleError } = await settle;
   if (settleError) {
     // The job is already 'failed' and never re-fetched, so this session stays
     // active with no pending job. Requeuing would not help: the retry hits the
@@ -186,9 +244,44 @@ async function failJobAndSettleSession({
   }
 }
 
+// A session that moved past a delay node is healthy only if the resume that
+// moved it also parked it somewhere recoverable: waiting on input, stamped
+// with a later delay's waiting_until (resumeSession clears it before
+// traversing, so non-null means a later delay executed), or covered by
+// another scheduled resume job (crash between the job insert and the
+// waiting_until stamp in executeDelay). An active session with none of these
+// was left by a resume invocation that died mid-traversal.
+// Throws on a failed jobs read: unknown state must not be reported as
+// unhealthy, or a transient read failure could cancel a live session.
+async function isSessionParkedRecoverably({
+  supabase,
+  session,
+  excludeJobId,
+}: {
+  supabase: Awaited<ReturnType<typeof createServiceClient>>;
+  session: { id: string; waiting_for_input: boolean; waiting_until: string | null };
+  excludeJobId: string;
+}): Promise<boolean> {
+  if (session.waiting_for_input || session.waiting_until) return true;
+
+  const { count, error } = await supabase
+    .from("scheduled_jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("type", "resume_flow")
+    .in("status", ["pending", "processing"])
+    .neq("id", excludeJobId)
+    .contains("payload", { sessionId: session.id });
+  if (error) {
+    throw new Error(
+      `could not check scheduled jobs for session ${session.id}: ${error.message}`
+    );
+  }
+  return (count ?? 0) > 0;
+}
+
 async function processJob(
   supabase: Awaited<ReturnType<typeof createServiceClient>>,
-  job: { type: string; payload: Json }
+  job: { id: string; type: string; payload: Json }
 ) {
   switch (job.type) {
     case "resume_flow": {
@@ -226,9 +319,27 @@ async function processJob(
         return;
       }
 
-      // Treat the job as satisfied if the session already moved past the
-      // delay node (e.g. duplicate jobs left by the old restart bug).
-      if (payload.nodeId && session.current_node_id !== payload.nodeId) return;
+      // The session moved past the delay node. That alone does not mean the
+      // resume succeeded (duplicate jobs left by the old restart bug): a
+      // resume whose invocation died mid-traversal (maxDuration, hung fetch,
+      // OOM) ALSO moved past it, after advancing current_node_id but before
+      // parking the session. Disambiguate before treating the job as
+      // satisfied; a stranded session would otherwise sit active forever
+      // with no job and no log line.
+      if (payload.nodeId && session.current_node_id !== payload.nodeId) {
+        const parked = await isSessionParkedRecoverably({
+          supabase,
+          session,
+          excludeJobId: job.id,
+        });
+        if (parked) return;
+        // This reclaimed job is the only evidence of the crash; route to the
+        // failed + settle branch (which cancels the session) instead of
+        // completing the job and discarding it.
+        throw new SessionCancelError(
+          `session ${payload.sessionId} moved past delay node ${payload.nodeId} to ${session.current_node_id} but is not waiting and has no scheduled job; a resume invocation died mid-traversal`
+        );
+      }
 
       // Resume from the node after the delay; resumeSession restores
       // variables from the session row and leaves {{message}} untouched
