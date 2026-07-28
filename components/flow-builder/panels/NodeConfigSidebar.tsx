@@ -3,7 +3,7 @@
 import { useCallback, useEffect } from "react";
 import { X, Trash2, Zap, MessageSquare, GitBranch, Clock, Cog, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Node } from "@xyflow/react";
+import type { Edge, Node } from "@xyflow/react";
 
 import { TriggerPanel } from "./TriggerPanel";
 import { SendMessagePanel } from "./SendMessagePanel";
@@ -15,12 +15,36 @@ import { AiResponsePanel } from "./AiResponsePanel";
 interface NodeConfigSidebarProps {
   node: Node;
   nodes: Node[];
+  edges: Edge[];
   onChange: (nodeId: string, data: Record<string, unknown>) => void;
   onClose: () => void;
   onDelete: (nodeId: string) => void;
 }
 
-function getFlowVariables(nodes: Node[]): string[] {
+// BFS backwards over edges; the visited set makes cycles terminate.
+function getUpstreamNodeIds(nodeId: string, edges: Edge[]): Set<string> {
+  const upstream = new Set<string>();
+  const queue = [nodeId];
+  for (let i = 0; i < queue.length; i++) {
+    const current = queue[i];
+    for (const edge of edges) {
+      if (edge.target !== current || upstream.has(edge.source)) continue;
+      upstream.add(edge.source);
+      queue.push(edge.source);
+    }
+  }
+  return upstream;
+}
+
+function getFlowVariables({
+  node,
+  nodes,
+  edges,
+}: {
+  node: Node;
+  nodes: Node[];
+  edges: Edge[];
+}): string[] {
   const variables = ["message"];
 
   const triggerNode = nodes.find((n) => n.type === "trigger");
@@ -30,12 +54,15 @@ function getFlowVariables(nodes: Node[]): string[] {
     variables.push("comment_id", "comment_text", "commenter_name", "post_id");
   }
 
-  if (nodes.some((n) => n.type === "aiResponse")) {
+  // Producer-derived variables are only offered when the producing node runs before this one.
+  const upstreamIds = getUpstreamNodeIds(node.id, edges);
+
+  if (nodes.some((n) => n.type === "aiResponse" && upstreamIds.has(n.id))) {
     variables.push("ai_response");
   }
 
   for (const n of nodes) {
-    if (n.type !== "httpRequest") continue;
+    if (n.type !== "httpRequest" || !upstreamIds.has(n.id)) continue;
     const responseVariable = (n.data as Record<string, unknown>)
       .responseVariable as string | undefined;
     if (responseVariable && !variables.includes(responseVariable)) {
@@ -85,7 +112,7 @@ const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: s
   },
 };
 
-export function NodeConfigSidebar({ node, nodes, onChange, onClose, onDelete }: NodeConfigSidebarProps) {
+export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDelete }: NodeConfigSidebarProps) {
   const nodeType = node.type || "action";
   const config = nodeTypeConfig[nodeType] || nodeTypeConfig.action;
   const Icon = config.icon;
@@ -125,7 +152,7 @@ export function NodeConfigSidebar({ node, nodes, onChange, onClose, onDelete }: 
           <SendMessagePanel
             data={data}
             onChange={handleChange}
-            availableVariables={getFlowVariables(nodes)}
+            availableVariables={getFlowVariables({ node, nodes, edges })}
           />
         );
       case "condition":

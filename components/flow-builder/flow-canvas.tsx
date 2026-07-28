@@ -472,6 +472,7 @@ function FlowCanvasInner({ flow }: FlowCanvasProps) {
           <NodeConfigSidebar
             node={selectedNode}
             nodes={nodes}
+            edges={edges}
             onChange={onNodeDataChange}
             onClose={closeSidebar}
             onDelete={deleteNode}
