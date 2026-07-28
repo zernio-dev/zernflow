@@ -238,7 +238,7 @@ describe("backfillInboxConversations", () => {
     expect(fake.inserts.filter((i) => i.table === "contacts")).toHaveLength(1);
   });
 
-  it("skips a webhook-owned row with a different late_conversation_id and does not count it", async () => {
+  it("skips a webhook-owned row without counting it or bumping the contact's last_interaction_at", async () => {
     const fake = makeFakeSupabase({
       existingConversationIds: ["webhook-conv"],
       contactChannelBySender: { "sender-c1": "contact-existing" },
@@ -256,6 +256,7 @@ describe("backfillInboxConversations", () => {
     expect(res.imported).toBe(0);
     expect(fake.upserts).toHaveLength(1);
     expect(fake.upserts[0].options).toMatchObject({ ignoreDuplicates: true });
+    expect(fake.updates.filter((u) => u.table === "contacts")).toHaveLength(0);
   });
 
   it("skips conversations already present locally (insert-only backfill)", async () => {
@@ -293,6 +294,9 @@ describe("backfillInboxConversations", () => {
     expect(fake.inserts.filter((i) => i.table === "contacts")).toHaveLength(0);
     expect(fake.inserts.filter((i) => i.table === "analytics_events")).toHaveLength(0);
     expect(fake.updates.filter((u) => u.table === "contacts")).toHaveLength(1);
+    expect(fake.updates[0].row).toMatchObject({
+      last_interaction_at: "2026-07-01T10:00:00.000Z",
+    });
     expect(fake.upserts[0].row).toMatchObject({ contact_id: "contact-existing" });
   });
 

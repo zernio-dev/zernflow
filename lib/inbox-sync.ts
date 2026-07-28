@@ -38,6 +38,8 @@ interface ZernioInboxConversation {
  * contact, its channel mapping, and a `contact_created` analytics event.
  * Returns null when the contact insert fails; `existed` tells whether the
  * sender was already known on this channel.
+ * With `stampExisting: false` an existing contact's last_interaction_at is
+ * left untouched; the caller stamps it once the interaction is confirmed.
  */
 export async function upsertContactForSender({
   supabase,
@@ -47,6 +49,7 @@ export async function upsertContactForSender({
   senderPicture,
   senderUsername,
   interactionAt,
+  stampExisting = true,
 }: {
   supabase: SupabaseClient;
   channel: { id: string; workspace_id: string };
@@ -55,6 +58,7 @@ export async function upsertContactForSender({
   senderPicture: string | null;
   senderUsername?: string | null;
   interactionAt: string;
+  stampExisting?: boolean;
 }): Promise<{ contactId: string; existed: boolean } | null> {
   const { data: existingContactChannel } = await supabase
     .from("contact_channels")
@@ -64,10 +68,12 @@ export async function upsertContactForSender({
     .single();
 
   if (existingContactChannel) {
-    await supabase
-      .from("contacts")
-      .update({ last_interaction_at: interactionAt })
-      .eq("id", existingContactChannel.contact_id);
+    if (stampExisting) {
+      await supabase
+        .from("contacts")
+        .update({ last_interaction_at: interactionAt })
+        .eq("id", existingContactChannel.contact_id);
+    }
     return { contactId: existingContactChannel.contact_id, existed: true };
   }
 
@@ -207,13 +213,15 @@ async function importConversation({
   channel: BackfillChannel;
   conv: ZernioInboxConversation;
 }): Promise<boolean> {
+  const interactionAt = conv.updatedTime ?? new Date().toISOString();
   const contact = await upsertContactForSender({
     supabase,
     channel: { id: channel.id, workspace_id: workspaceId },
     senderId: conv.participantId!,
     senderName: conv.participantName || conv.participantId!,
     senderPicture: conv.participantPicture || null,
-    interactionAt: conv.updatedTime ?? new Date().toISOString(),
+    interactionAt,
+    stampExisting: false,
   });
 
   if (!contact) {
@@ -248,5 +256,16 @@ async function importConversation({
     return false;
   }
 
-  return (insertedRows ?? []).length > 0;
+  const inserted = (insertedRows ?? []).length > 0;
+
+  // Stamp the existing contact only after the conversation row was actually
+  // inserted; a webhook-owned duplicate is not a new interaction.
+  if (inserted && contact.existed) {
+    await supabase
+      .from("contacts")
+      .update({ last_interaction_at: interactionAt })
+      .eq("id", contact.contactId);
+  }
+
+  return inserted;
 }
