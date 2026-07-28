@@ -45,12 +45,16 @@ export async function GET(request: NextRequest) {
   let failed = 0;
 
   for (const job of jobs) {
-    // Mark as processing
-    await supabase
+    // Mark as processing; .select() returns the updated row so we can verify
+    // the claim (overlapping cron runs would otherwise both process the job)
+    const { data: claimed } = await supabase
       .from("scheduled_jobs")
       .update({ status: "processing", attempts: job.attempts + 1 })
       .eq("id", job.id)
-      .eq("status", "pending"); // Optimistic lock
+      .eq("status", "pending") // Optimistic lock
+      .select();
+
+    if (!claimed || claimed.length === 0) continue; // Claim lost to another run
 
     try {
       await processJob(supabase, job);
