@@ -10,9 +10,11 @@ import {
   PowerOff,
   RefreshCw,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PlatformIcon } from "@/components/platform-icon";
 import type { Database, Platform } from "@/lib/types/database";
 
@@ -75,6 +77,8 @@ export function ChannelsView({
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showPlatformPicker, setShowPlatformPicker] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -171,6 +175,31 @@ export function ChannelsView({
       );
     }
     setTogglingId(null);
+  }
+
+  async function handleDelete() {
+    if (!channelToDelete) return;
+    const id = channelToDelete.id;
+    setDeletingId(id);
+
+    try {
+      const res = await fetch(`/api/v1/channels/${id}`, { method: "DELETE" });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setSyncMessage(data.error || "Failed to delete channel");
+        setTimeout(() => setSyncMessage(null), 4000);
+        return;
+      }
+
+      setChannels((prev) => prev.filter((c) => c.id !== id));
+    } catch {
+      setSyncMessage("Failed to delete channel. Check your connection.");
+      setTimeout(() => setSyncMessage(null), 4000);
+    } finally {
+      setDeletingId(null);
+      setChannelToDelete(null);
+    }
   }
 
   return (
@@ -308,27 +337,41 @@ export function ChannelsView({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleToggleActive(channel)}
-                      disabled={togglingId === channel.id}
-                      className={cn(
-                        "rounded-lg p-2 transition-colors",
-                        channel.is_active
-                          ? "text-green-600 hover:bg-green-100"
-                          : "text-muted-foreground hover:bg-muted"
-                      )}
-                      title={
-                        channel.is_active
-                          ? "Channel is active. Click to deactivate."
-                          : "Channel is inactive. Click to activate."
-                      }
-                    >
-                      {channel.is_active ? (
-                        <Power className="h-4 w-4" />
-                      ) : (
-                        <PowerOff className="h-4 w-4" />
-                      )}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleToggleActive(channel)}
+                        disabled={togglingId === channel.id}
+                        className={cn(
+                          "rounded-lg p-2 transition-colors",
+                          channel.is_active
+                            ? "text-green-600 hover:bg-green-100"
+                            : "text-muted-foreground hover:bg-muted"
+                        )}
+                        title={
+                          channel.is_active
+                            ? "Channel is active. Click to deactivate."
+                            : "Channel is inactive. Click to activate."
+                        }
+                      >
+                        {channel.is_active ? (
+                          <Power className="h-4 w-4" />
+                        ) : (
+                          <PowerOff className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setChannelToDelete(channel)}
+                        disabled={deletingId === channel.id}
+                        className="rounded-lg p-2 text-muted-foreground hover:bg-red-100 hover:text-red-600 transition-colors"
+                        title="Delete channel"
+                      >
+                        {deletingId === channel.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4 flex items-center gap-2">
@@ -402,6 +445,20 @@ export function ChannelsView({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!channelToDelete}
+        title="Delete channel?"
+        message={`This disconnects ${
+          channelToDelete?.display_name ??
+          channelToDelete?.username ??
+          (channelToDelete ? getPlatformLabel(channelToDelete.platform) : "this channel")
+        } from Zernio and permanently deletes its conversations, contact links, and stats in Zernflow. This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setChannelToDelete(null)}
+      />
     </div>
   );
 }
