@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { executeFlow } from "@/lib/flow-engine/engine";
 import { matchTrigger } from "@/lib/flow-engine/trigger-matcher";
 import { resolveWebhookSecret, verifyWebhookSignature } from "@/lib/zernio-webhook";
+import { upsertContactForSender } from "@/lib/inbox-sync";
 import { processComment } from "@/lib/comment-processor";
 import type { Database } from "@/lib/types/database";
 
@@ -208,52 +209,22 @@ async function processMessageEvent(
   const senderId = msg.sender.id;
   const senderName = msg.sender.name || msg.sender.username || senderId;
 
-  let contactId: string;
-  const { data: existingContactChannel } = await supabase
-    .from("contact_channels")
-    .select("contact_id")
-    .eq("channel_id", channel.id)
-    .eq("platform_sender_id", senderId)
-    .single();
+  const contact = await upsertContactForSender({
+    supabase,
+    channel,
+    senderId,
+    senderName,
+    senderPicture: msg.sender.picture || null,
+    senderUsername: msg.sender.username || null,
+    interactionAt: new Date().toISOString(),
+  });
 
-  if (existingContactChannel) {
-    contactId = existingContactChannel.contact_id;
-    await supabase
-      .from("contacts")
-      .update({ last_interaction_at: new Date().toISOString() })
-      .eq("id", contactId);
-  } else {
-    const { data: newContact } = await supabase
-      .from("contacts")
-      .insert({
-        workspace_id: channel.workspace_id,
-        display_name: senderName,
-        avatar_url: msg.sender.picture || null,
-        last_interaction_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (!newContact) {
-      console.error("Failed to create contact for webhook message");
-      return;
-    }
-
-    contactId = newContact.id;
-
-    await supabase.from("contact_channels").insert({
-      contact_id: contactId,
-      channel_id: channel.id,
-      platform_sender_id: senderId,
-      platform_username: msg.sender.username || null,
-    });
-
-    await supabase.from("analytics_events").insert({
-      workspace_id: channel.workspace_id,
-      contact_id: contactId,
-      event_type: "contact_created",
-    });
+  if (!contact) {
+    console.error("Failed to create contact for webhook message");
+    return;
   }
+
+  const contactId = contact.contactId;
 
   // ── Upsert conversation ──────────────────────────────────────────────────
 
@@ -283,7 +254,7 @@ async function processMessageEvent(
     return;
   }
 
-  if (existingContactChannel) {
+  if (contact.existed) {
     await supabase
       .rpc("increment_unread", {
         conv_id: conversation.id,
@@ -322,7 +293,7 @@ async function processMessageEvent(
         workspaceId: channel.workspace_id,
         conversationId: conversation.id,
         message: incomingMessage,
-        isFirstMessage: !existingContactChannel,
+        isFirstMessage: !contact.existed,
       });
       if (trigger) {
         try {

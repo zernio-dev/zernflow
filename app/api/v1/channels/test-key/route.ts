@@ -5,6 +5,7 @@ import {
   ensureWebhookRegistered,
   getOrCreateWorkspaceWebhookSecret,
 } from "@/lib/zernio-webhook";
+import { backfillInboxConversations } from "@/lib/inbox-sync";
 
 /**
  * POST /api/v1/channels/test-key
@@ -92,6 +93,25 @@ export async function POST(request: NextRequest) {
         profile_picture: account.profilePicture || null,
         is_active: true,
       });
+    }
+
+    // Backfill conversations that predate webhook registration so a
+    // first-time API-key setup fills the Inbox immediately (best-effort).
+    try {
+      const { data: activeChannels } = await supabase
+        .from("channels")
+        .select("id, late_account_id, platform")
+        .eq("workspace_id", workspaceId)
+        .eq("is_active", true);
+
+      await backfillInboxConversations({
+        supabase,
+        zernio: createZernioClient(apiKey.trim()),
+        workspaceId,
+        channels: activeChannels ?? [],
+      });
+    } catch (err) {
+      console.error("[test-key] inbox backfill failed:", err);
     }
   }
 

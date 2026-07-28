@@ -135,14 +135,15 @@ export function ChannelsView({
       }
 
       setChannels(data.channels ?? []);
-      const { created, updated, deactivated } = data.synced;
-      if (created === 0 && updated === 0 && deactivated === 0) {
+      const { created, updated, deactivated, conversationsImported = 0 } = data.synced;
+      if (created === 0 && updated === 0 && deactivated === 0 && conversationsImported === 0) {
         setSyncMessage("All channels up to date");
       } else {
         const parts = [];
         if (created > 0) parts.push(`${created} added`);
         if (updated > 0) parts.push(`${updated} updated`);
         if (deactivated > 0) parts.push(`${deactivated} deactivated`);
+        if (conversationsImported > 0) parts.push(`${conversationsImported} conversations imported`);
         setSyncMessage(parts.join(", "));
       }
       setTimeout(() => setSyncMessage(null), 4000);

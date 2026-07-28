@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createZernioClient } from "@/lib/zernio-client";
+import {
+  ensureWebhookRegistered,
+  getOrCreateWorkspaceWebhookSecret,
+} from "@/lib/zernio-webhook";
+import { backfillInboxConversations } from "@/lib/inbox-sync";
 
 async function getWorkspace(supabase: Awaited<ReturnType<typeof createClient>>) {
   const {
@@ -109,6 +114,41 @@ export async function POST() {
       }
     }
 
+    // Re-register the webhook so inbound events reach the Inbox. Both the
+    // Channels "Sync" button and the OAuth callback land here, and until now
+    // registration only happened in the Settings test-key flow (#12).
+    // Best-effort: a failure must not block the channel sync.
+    try {
+      const secret = await getOrCreateWorkspaceWebhookSecret(supabase, workspace.id);
+      await ensureWebhookRegistered(zernio, {
+        appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        secret,
+        events: ["message.received", "comment.received"],
+      });
+    } catch (err) {
+      console.error("[channels/sync] webhook auto-registration failed:", err);
+    }
+
+    // Backfill conversations that predate webhook registration (best-effort).
+    let conversationsImported = 0;
+    try {
+      const { data: activeChannels } = await supabase
+        .from("channels")
+        .select("id, late_account_id, platform")
+        .eq("workspace_id", workspace.id)
+        .eq("is_active", true);
+
+      const { imported } = await backfillInboxConversations({
+        supabase,
+        zernio,
+        workspaceId: workspace.id,
+        channels: activeChannels ?? [],
+      });
+      conversationsImported = imported;
+    } catch (err) {
+      console.error("[channels/sync] inbox backfill failed:", err);
+    }
+
     // Return updated channel list
     const { data: channels } = await supabase
       .from("channels")
@@ -118,7 +158,7 @@ export async function POST() {
 
     return NextResponse.json({
       channels: channels ?? [],
-      synced: { created, updated, deactivated },
+      synced: { created, updated, deactivated, conversationsImported },
     });
   } catch (error) {
     console.error("Failed to sync channels:", error);
