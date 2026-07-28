@@ -61,12 +61,28 @@ export interface SimulationResult {
 
 // --- Helpers ---
 
+function resolvePath(
+  variables: Record<string, string>,
+  path: string
+): unknown {
+  let value: unknown = variables;
+  for (const key of path.split(".")) {
+    if (typeof value !== "object" || value === null) return undefined;
+    value = (value as Record<string, unknown>)[key];
+  }
+  return value;
+}
+
+// Mirrors interpolateVariables in engine.ts (dot paths, JSON for objects,
+// literal token when unresolved) so test-mode previews match production.
 function interpolate(
   text: string,
   variables: Record<string, string>
 ): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-    return variables[key] ?? `{{${key}}}`;
+  return text.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (token, path: string) => {
+    const value = resolvePath(variables, path);
+    if (value === null || value === undefined) return token;
+    return typeof value === "object" ? JSON.stringify(value) : String(value);
   });
 }
 
