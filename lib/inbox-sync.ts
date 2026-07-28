@@ -28,6 +28,7 @@ interface ZernioInboxConversation {
   participantPicture?: string | null;
   lastMessage?: string;
   updatedTime?: string;
+  status?: "active" | "archived";
   unreadCount?: number | null;
 }
 
@@ -102,8 +103,11 @@ export async function upsertContactForSender({
 /**
  * Imports Zernio inbox conversations missing from the local `conversations`
  * table. Insert-only: conversations already known (by late_conversation_id)
- * are skipped so the webhook-maintained last_message_at / unread_count are
- * never clobbered. A failing channel is logged and skipped, not fatal.
+ * are skipped, and a contact whose (channel_id, contact_id) row already exists
+ * under a different late_conversation_id is left to the webhook, so the
+ * webhook-maintained late_conversation_id / status / last_message_at /
+ * unread_count are never clobbered. A failing channel is logged and skipped,
+ * not fatal.
  */
 export async function backfillInboxConversations({
   supabase,
@@ -156,6 +160,7 @@ async function backfillChannel({
 
   let imported = 0;
   let cursor: string | undefined;
+  const seenParticipants = new Set<string>();
 
   for (let page = 0; page < MAX_PAGES_PER_CHANNEL; page++) {
     const res = await zernio.messages.listInboxConversations({
@@ -171,6 +176,12 @@ async function backfillChannel({
 
     for (const conv of conversations) {
       if (!conv.id || !conv.participantId) continue;
+      // A participant can have several Zernio conversations but the local
+      // table is unique on (channel_id, contact_id). sortOrder desc means the
+      // first conversation seen per participant is the most recent one; later
+      // ones are dropped so they cannot overwrite it.
+      if (seenParticipants.has(conv.participantId)) continue;
+      seenParticipants.add(conv.participantId);
       if (known.has(conv.id)) continue;
       if (await importConversation({ supabase, workspaceId, channel, conv })) {
         imported++;
@@ -210,25 +221,32 @@ async function importConversation({
     return false;
   }
 
-  const { error } = await supabase.from("conversations").upsert(
-    {
-      workspace_id: workspaceId,
-      channel_id: channel.id,
-      contact_id: contact.contactId,
-      platform: channel.platform,
-      late_conversation_id: conv.id,
-      status: "open",
-      last_message_at: conv.updatedTime ?? null,
-      last_message_preview: (conv.lastMessage ?? "").slice(0, 100),
-      unread_count: conv.unreadCount ?? 0,
-    },
-    { onConflict: "channel_id,contact_id" }
-  );
+  // ignoreDuplicates: an existing (channel_id, contact_id) row is owned by the
+  // webhook (possibly under a different late_conversation_id) and must stay
+  // untouched; the conflict then returns no rows, so it is not counted as
+  // imported either.
+  const { data: insertedRows, error } = await supabase
+    .from("conversations")
+    .upsert(
+      {
+        workspace_id: workspaceId,
+        channel_id: channel.id,
+        contact_id: contact.contactId,
+        platform: channel.platform,
+        late_conversation_id: conv.id,
+        status: conv.status === "archived" ? "closed" : "open",
+        last_message_at: conv.updatedTime ?? null,
+        last_message_preview: (conv.lastMessage ?? "").slice(0, 100),
+        unread_count: conv.unreadCount ?? 0,
+      },
+      { onConflict: "channel_id,contact_id", ignoreDuplicates: true }
+    )
+    .select("id");
 
   if (error) {
     console.error(`[inbox-sync] failed to upsert conversation ${conv.id}:`, error);
     return false;
   }
 
-  return true;
+  return (insertedRows ?? []).length > 0;
 }

@@ -17,6 +17,9 @@ interface CapturedRow {
 function makeFakeSupabase(seed: {
   existingConversationIds?: string[];
   contactChannelBySender?: Record<string, string>;
+  /** Contact ids that already have a conversations row on the channel, so the
+   * ignoreDuplicates upsert conflicts and returns no inserted rows. */
+  conversationContactIds?: string[];
 }) {
   const inserts: CapturedRow[] = [];
   const upserts: CapturedRow[] = [];
@@ -81,7 +84,16 @@ function makeFakeSupabase(seed: {
         },
         upsert(row: Record<string, unknown>, options?: Record<string, unknown>) {
           upserts.push({ table, row, options });
-          return Promise.resolve({ error: null });
+          const conflicted =
+            options?.ignoreDuplicates === true &&
+            (seed.conversationContactIds ?? []).includes(row.contact_id as string);
+          return {
+            select: () =>
+              Promise.resolve({
+                data: conflicted ? [] : [{ id: `conv-${row.late_conversation_id}` }],
+                error: null,
+              }),
+          };
         },
       };
       return builder;
@@ -173,8 +185,77 @@ describe("backfillInboxConversations", () => {
         last_message_preview: "hello from c1",
         unread_count: 2,
       },
-      options: { onConflict: "channel_id,contact_id" },
+      options: { onConflict: "channel_id,contact_id", ignoreDuplicates: true },
     });
+  });
+
+  it("imports archived Zernio conversations as closed, not open", async () => {
+    const fake = makeFakeSupabase({});
+    const z = fakeZernio([
+      {
+        data: [conv("c1", { status: "archived" }), conv("c2", { status: "active" })],
+        pagination: { hasMore: false },
+      },
+    ]);
+
+    const res = await backfillInboxConversations({
+      supabase: fake.client,
+      zernio: z.client,
+      workspaceId: "ws-1",
+      channels: [channel],
+    });
+
+    expect(res.imported).toBe(2);
+    expect(fake.upserts[0].row).toMatchObject({
+      late_conversation_id: "c1",
+      status: "closed",
+    });
+    expect(fake.upserts[1].row).toMatchObject({
+      late_conversation_id: "c2",
+      status: "open",
+    });
+  });
+
+  it("keeps only the most recent conversation per contact within a run", async () => {
+    const fake = makeFakeSupabase({});
+    const z = fakeZernio([
+      {
+        data: [conv("c1"), conv("c2", { participantId: "sender-c1" })],
+        pagination: { hasMore: false },
+      },
+    ]);
+
+    const res = await backfillInboxConversations({
+      supabase: fake.client,
+      zernio: z.client,
+      workspaceId: "ws-1",
+      channels: [channel],
+    });
+
+    expect(res.imported).toBe(1);
+    expect(fake.upserts).toHaveLength(1);
+    expect(fake.upserts[0].row).toMatchObject({ late_conversation_id: "c1" });
+    expect(fake.inserts.filter((i) => i.table === "contacts")).toHaveLength(1);
+  });
+
+  it("skips a webhook-owned row with a different late_conversation_id and does not count it", async () => {
+    const fake = makeFakeSupabase({
+      existingConversationIds: ["webhook-conv"],
+      contactChannelBySender: { "sender-c1": "contact-existing" },
+      conversationContactIds: ["contact-existing"],
+    });
+    const z = fakeZernio([{ data: [conv("c1")], pagination: { hasMore: false } }]);
+
+    const res = await backfillInboxConversations({
+      supabase: fake.client,
+      zernio: z.client,
+      workspaceId: "ws-1",
+      channels: [channel],
+    });
+
+    expect(res.imported).toBe(0);
+    expect(fake.upserts).toHaveLength(1);
+    expect(fake.upserts[0].options).toMatchObject({ ignoreDuplicates: true });
   });
 
   it("skips conversations already present locally (insert-only backfill)", async () => {
