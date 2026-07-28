@@ -3,6 +3,12 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { FlowLoadError, resumeSession } from "@/lib/flow-engine/engine";
 import type { Json } from "@/lib/types/database";
 
+// Thrown when a resume failed AND the cancel of its session also failed.
+// Requeuing would strand the session: the retry hits the stale-node guard
+// and completes the job. The handler routes this straight to the failed +
+// settle branch, which re-attempts the cancel.
+class SessionCancelError extends Error {}
+
 /**
  * Cron job handler that processes scheduled jobs.
  * Call via Vercel Cron or external cron every 10-30 seconds.
@@ -91,7 +97,7 @@ export async function GET(request: NextRequest) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       const maxAttempts = 3;
 
-      if (job.attempts + 1 >= maxAttempts) {
+      if (job.attempts + 1 >= maxAttempts || err instanceof SessionCancelError) {
         await supabase
           .from("scheduled_jobs")
           .update({ status: "failed", last_error: errorMessage })
@@ -150,14 +156,25 @@ async function processJob(
       };
 
       // Check if session is still active
-      const { data: session } = await supabase
+      const { data: session, error: sessionError } = await supabase
         .from("flow_sessions")
         .select("*")
         .eq("id", payload.sessionId)
         .eq("status", "active")
         .single();
 
-      if (!session) return; // Session was cancelled/completed
+      if (!session) {
+        // postgrest-js swallows transient failures into { data: null, error };
+        // only PGRST116 (zero rows) means the session is genuinely
+        // cancelled/completed. Anything else must throw so the job retries
+        // with backoff instead of being marked completed.
+        if (sessionError && sessionError.code !== "PGRST116") {
+          throw new Error(
+            `flow session ${payload.sessionId} could not be loaded: ${sessionError.message}`
+          );
+        }
+        return;
+      }
 
       // Treat the job as satisfied if the session already moved past the
       // delay node (e.g. duplicate jobs left by the old restart bug).
@@ -190,10 +207,19 @@ async function processJob(
         // node; the retry would then hit the stale-node guard above and
         // complete, stranding the session as active with no pending job.
         // Cancel it so the failure is explicit.
-        await supabase
+        const { error: cancelError } = await supabase
           .from("flow_sessions")
           .update({ status: "cancelled" })
           .eq("id", payload.sessionId);
+        if (cancelError) {
+          // postgrest swallows network failures into { error }, so an
+          // unchecked cancel can silently no-op; see SessionCancelError.
+          throw new SessionCancelError(
+            `resume of session ${payload.sessionId} failed (${
+              err instanceof Error ? err.message : String(err)
+            }) and the session cancel also failed: ${cancelError.message}`
+          );
+        }
         console.error(
           `Failed to resume flow session ${payload.sessionId} (flow ${session.flow_id}), session cancelled:`,
           err
