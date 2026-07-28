@@ -306,7 +306,7 @@ async function executeNode(
     case "privateReply":
       return executePrivateReply(supabase, node.data as PrivateReplyNodeData, context);
     case "aiResponse":
-      return executeAiResponse(supabase, node.data as AiResponseNodeData, context);
+      return executeAiResponse(supabase, node.data as AiResponseNodeData, context, sessionId);
     case "abSplit":
       return executeABSplit(node.data as ABSplitNodeData);
     case "smartDelay":

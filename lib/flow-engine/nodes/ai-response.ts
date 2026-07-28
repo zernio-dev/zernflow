@@ -7,7 +7,8 @@ import { generateText, createGateway } from "ai";
 export async function executeAiResponse(
   supabase: SupabaseClient<Database>,
   data: AiResponseNodeData,
-  context: FlowExecutionContext
+  context: FlowExecutionContext,
+  sessionId: string
 ) {
   // Get workspace for Zernio API key + AI Gateway key
   const { data: workspace } = await supabase
@@ -137,5 +138,15 @@ export async function executeAiResponse(
       event_type: "message_failed",
       metadata: { error: error instanceof Error ? error.message : "Unknown error" },
     });
+
+    // Halt the run: continuing would let a downstream Send Message deliver the
+    // literal "{{ai_response}}" token to the contact (same pause mechanism as
+    // humanTakeover, but the session is cancelled rather than completed).
+    await supabase
+      .from("flow_sessions")
+      .update({ status: "cancelled" })
+      .eq("id", sessionId);
+
+    return "pause";
   }
 }
