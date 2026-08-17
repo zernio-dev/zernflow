@@ -37,6 +37,31 @@ export async function executeFlow(
     context.variables.message ??= context.incomingMessage.text;
   }
 
+  // Seed {{contact_name}} from the incoming message sender name so comment
+  // flows (which set variables.commenter_name) and DM flows can personalize
+  // their messages without each node having to look up the contact. Idempotent:
+  // only set if not already present, so comment-triggered flows that seed
+  // {{commenter_name}} keep their own value and DM flows get the sender name.
+  // FALLBACK CHAIN: name → username → contact display_name from DB
+  // (Facebook/IG DMs may have null name — same bug pattern as comment-processor)
+  const senderName =
+    context.incomingMessage.sender?.name ||
+    context.incomingMessage.sender?.username;
+  if (senderName) {
+    context.variables.contact_name ??= senderName;
+  }
+  // If still not set, try contact display_name from DB
+  if (!context.variables.contact_name && context.contactId) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("display_name")
+      .eq("id", context.contactId)
+      .maybeSingle();
+    if (contact?.display_name) {
+      context.variables.contact_name = contact.display_name;
+    }
+  }
+
   // Check for active session waiting for input
   const { data: activeSession } = await supabase
     .from("flow_sessions")
@@ -63,6 +88,16 @@ export async function executeFlow(
 
   const nodes = flow.nodes as unknown as FlowNode[];
   const edges = flow.edges as unknown as FlowEdge[];
+
+  // Guard against malformed flow data — nodes/edges must be arrays.
+  // Supabase can return null/string if the JSONB column is corrupted.
+  // Without this guard, nodes.find() throws "i.find is not a function" (minified).
+  if (!Array.isArray(nodes) || !Array.isArray(edges)) {
+    console.error(
+      `Flow ${context.flowId} has malformed nodes/edges (nodes: ${typeof nodes}, edges: ${typeof edges})`
+    );
+    return;
+  }
 
   // Get channel platform and late_account_id
   const { data: channel } = await supabase
@@ -283,7 +318,22 @@ async function traverseNodes(
   });
 
   // Execute the node
-  const result = await executeNode(supabase, node, context, sessionId);
+  let result: string | void;
+  try {
+    result = await executeNode(supabase, node, context, sessionId);
+  } catch (error) {
+    // Node execution failed (e.g. DM send failure). Mark the session as
+    // cancelled so it doesn't strand as "active" forever — which would cause
+    // the next message from this contact to resume a dead session.
+    // Note: DB CHECK constraint allows 'active', 'completed', 'expired', 'cancelled'.
+    // 'cancelled' is the closest to 'failed' (can't add 'failed' without migration).
+    console.error(`Node ${node.id} (${node.type}) failed in flow ${context.flowId}:`, error);
+    await supabase
+      .from("flow_sessions")
+      .update({ status: "cancelled" })
+      .eq("id", sessionId);
+    throw error;
+  }
 
   // Persist variables written by output-producing nodes so they survive
   // pauses (resumeSession reloads them from the session row).
@@ -398,6 +448,21 @@ async function sendFirstMessageAsPrivateReply(
       body: { accountId: lateAccountId, message: text },
     });
 
+    // Link the conversation to its Zernio conversation ID so the inbox
+    // can fetch the message thread. For Facebook, Zernio's conversation
+    // ID equals the commenter's PSID (sender.id). For Instagram, it's
+    // set later when the contact sends a DM. Without this, the inbox
+    // shows "Select a conversation" forever because the messages API
+    // returns 404 when late_conversation_id is null.
+    const senderId = context.incomingMessage?.sender?.id;
+    if (senderId && !context.lateConversationId) {
+      await supabase
+        .from("conversations")
+        .update({ late_conversation_id: senderId })
+        .eq("id", context.conversationId);
+      context.lateConversationId = senderId;
+    }
+
     await supabase.from("messages").insert({
       conversation_id: context.conversationId,
       direction: "outbound",
@@ -421,7 +486,19 @@ async function sendFirstMessageAsPrivateReply(
       sent_by_flow_id: context.flowId,
       status: "failed",
     });
-    return;
+
+    await supabase.from("analytics_events").insert({
+      workspace_id: context.workspaceId,
+      flow_id: context.flowId,
+      contact_id: context.contactId,
+      event_type: "message_failed",
+      metadata: { error: error instanceof Error ? error.message : "Unknown error" },
+    });
+
+    // Re-throw so the caller (executeFlow → processComment) knows the DM failed
+    // and can mark dm_sent=false in the comment log. Without this, the pre-written
+    // dm_sent=true stays, permanently locking the user out (phantom lockout bug).
+    throw error;
   }
 
   if (data.messages.length > 1) {
@@ -463,7 +540,24 @@ async function executeSendMessage(
     }
   }
 
-  // Resolve late_conversation_id from conversation if not in context
+  // ── Comment-triggered flows must always use Private Reply API ──────────────
+  // Meta's sendInboxMessage (standard DM) requires the user to have messaged the
+  // page within the last 24h. But Meta's sendPrivateReplyToComment API allows
+  // replying to a comment via DM for up to 7 DAYS after the comment was posted.
+  // Comment-triggered flows ALWAYS have comment_id + post_id in context, so we
+  // always use the private reply endpoint here — regardless of whether a DM
+  // conversation already exists. This prevents the "24h window" failure that
+  // blocked returning users (who DM'd >24h ago) from receiving their worksheet.
+  if (
+    context.variables?.comment_id &&
+    context.variables?.post_id &&
+    lateAccountId
+  ) {
+    await sendFirstMessageAsPrivateReply(supabase, zernio, data, context, lateAccountId);
+    return;
+  }
+
+  // ── Regular DM flows (not comment-triggered) ───────────────────────────────
   let lateConversationId = context.lateConversationId;
   if (!lateConversationId) {
     const { data: conversation } = await supabase
@@ -473,14 +567,6 @@ async function executeSendMessage(
       .single();
 
     if (!conversation?.late_conversation_id) {
-      // Comment-triggered flows have no DM conversation yet. Instagram allows
-      // exactly one private reply per comment, so deliver the first message via
-      // the private-reply endpoint instead of silently dropping the whole node
-      // (users build comment flows with plain Send Message nodes, not Private Reply).
-      if (context.variables?.comment_id && context.variables?.post_id && lateAccountId) {
-        await sendFirstMessageAsPrivateReply(supabase, zernio, data, context, lateAccountId);
-        return;
-      }
       console.error("No late_conversation_id found for conversation:", context.conversationId);
       return;
     }
@@ -545,6 +631,14 @@ async function executeSendMessage(
         status: "sent",
       });
 
+      // Update conversation preview so inbox sidebar shows latest message
+      await supabase.from("conversations")
+        .update({
+          last_message_preview: text.slice(0, 100),
+          last_message_at: new Date().toISOString(),
+        })
+        .eq("id", context.conversationId);
+
       await supabase.from("analytics_events").insert({
         workspace_id: context.workspaceId,
         flow_id: context.flowId,
@@ -568,6 +662,11 @@ async function executeSendMessage(
         event_type: "message_failed",
         metadata: { error: error instanceof Error ? error.message : "Unknown error" },
       });
+
+      // Re-throw so callers know the send failed (matches sendFirstMessageAsPrivateReply
+      // and executePrivateReply behavior). Without this, the flow continues as if the
+      // DM was sent successfully, potentially sending follow-up messages into the void.
+      throw error;
     }
 
     // Small delay between messages
@@ -774,6 +873,7 @@ async function executeHttpRequest(
         ...data.headers,
       },
       body: data.method !== "GET" ? body : undefined,
+      signal: AbortSignal.timeout(10000), // Prevent indefinite hang on slow endpoints
     });
 
     const responseData = await response.text();
@@ -788,6 +888,12 @@ async function executeHttpRequest(
     }
   } catch (error) {
     console.error("HTTP request failed:", error);
+    // Store error in response variable so downstream nodes don't get literal tokens
+    if (data.responseVariable && context.variables) {
+      context.variables[data.responseVariable] = JSON.stringify({
+        error: error instanceof Error ? error.message : "Request failed",
+      }) as string;
+    }
   }
 }
 
@@ -842,6 +948,11 @@ async function executeSubscription(
 }
 
 function executeABSplit(data: ABSplitNodeData): string {
+  // Guard against empty/missing paths array — prevents TypeError crash
+  if (!data.paths?.length) {
+    console.error("A/B split node has no paths configured");
+    return "handle:default";
+  }
   const totalWeight = data.paths.reduce((sum, p) => sum + p.weight, 0);
   const random = Math.random() * totalWeight;
 
@@ -888,8 +999,14 @@ async function executeCommentReply(
     lateAccountId = channel.late_account_id;
   }
 
-  const commentId = context.variables?.comment_id || context.incomingMessage.sender?.id;
-  if (!commentId) return;
+  // Use comment_id from context variables. NEVER fall back to sender.id —
+  // that's the commenter's PSID/IGA user ID, not a comment ID, and passing it
+  // here would make the API reply to the wrong entity (or fail silently).
+  const commentId = context.variables?.comment_id;
+  if (!commentId) {
+    console.error("No comment_id in context variables for commentReply node");
+    return;
+  }
 
   const postId = context.variables?.post_id;
   if (!postId) {
@@ -906,6 +1023,17 @@ async function executeCommentReply(
     });
   } catch (error) {
     console.error("Failed to post comment reply:", error);
+    await supabase.from("analytics_events").insert({
+      workspace_id: context.workspaceId,
+      flow_id: context.flowId,
+      contact_id: context.contactId,
+      event_type: "message_failed",
+      metadata: {
+        error: error instanceof Error ? error.message : "Unknown error",
+        node: "commentReply",
+      },
+    });
+    throw error;
   }
 }
 
@@ -941,8 +1069,14 @@ async function executePrivateReply(
     lateAccountId = channel.late_account_id;
   }
 
-  const commentId = context.variables?.comment_id || context.incomingMessage.sender?.id;
-  if (!commentId) return;
+  // Use comment_id from context variables. NEVER fall back to sender.id —
+  // that's the commenter's PSID/IGA user ID, not a comment ID, and passing it
+  // here would make the API reply to the wrong entity (or fail silently).
+  const commentId = context.variables?.comment_id;
+  if (!commentId) {
+    console.error("No comment_id in context variables for privateReply node");
+    return;
+  }
 
   const postId = context.variables?.post_id;
   if (!postId) {
@@ -977,6 +1111,19 @@ async function executePrivateReply(
       sent_by_flow_id: context.flowId,
       status: "failed",
     });
+
+    await supabase.from("analytics_events").insert({
+      workspace_id: context.workspaceId,
+      flow_id: context.flowId,
+      contact_id: context.contactId,
+      event_type: "message_failed",
+      metadata: { error: error instanceof Error ? error.message : "Unknown error" },
+    });
+
+    // Re-throw so the caller knows the DM failed and can handle it
+    // (e.g. mark dm_sent=false, enable retry). Without this, the flow
+    // silently continues as if the message was delivered.
+    throw error;
   }
 }
 

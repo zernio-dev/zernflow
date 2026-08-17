@@ -6,7 +6,6 @@ import { MessageSquare, RefreshCw, User } from "lucide-react";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactPanel } from "@/components/inbox/contact-panel";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/lib/types/database";
 
@@ -82,13 +81,15 @@ export function InboxView({
         setLoadingMessages(false);
       }
 
-      // Mark as read
+      // Mark as read via API (not client-side Supabase)
       if (selected!.unread_count > 0) {
-        const supabase = createClient();
-        await supabase
-          .from("conversations")
-          .update({ unread_count: 0 })
-          .eq("id", selected!.id);
+        try {
+          await fetch(`/api/v1/conversations/${selected!.id}/read`, {
+            method: "POST",
+          });
+        } catch (err) {
+          console.error("Failed to mark conversation as read:", err);
+        }
       }
     }
 

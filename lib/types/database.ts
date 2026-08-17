@@ -142,6 +142,7 @@ export interface Database {
           is_active: boolean;
           last_comment_cursor: string | null;
           comment_rules: Json | null;
+          platform_page_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -158,6 +159,7 @@ export interface Database {
           is_active?: boolean;
           last_comment_cursor?: string | null;
           comment_rules?: Json | null;
+          platform_page_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -172,6 +174,7 @@ export interface Database {
           is_active?: boolean;
           last_comment_cursor?: string | null;
           comment_rules?: Json | null;
+          platform_page_id?: string | null;
           updated_at?: string;
         };
         Relationships: [

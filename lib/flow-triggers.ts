@@ -55,7 +55,12 @@ export function buildDesiredTriggers(
         const postIds = data.postIds ?? nodeConfig.postIds;
         if (Array.isArray(postIds) && postIds.length > 0) config.postIds = postIds;
         const replyText = data.replyText ?? nodeConfig.replyText;
-        if (typeof replyText === "string" && replyText.trim()) config.replyText = replyText;
+        // replyText can be a single string or an array of variants for rotation
+        if (typeof replyText === "string" && replyText.trim()) {
+          config.replyText = replyText;
+        } else if (Array.isArray(replyText) && replyText.length > 0) {
+          config.replyText = replyText;
+        }
       } else if (type === "postback" || type === "quick_reply") {
         const payload = data.payload ?? nodeConfig.payload;
         if (payload !== undefined) config.payload = payload;
