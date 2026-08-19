@@ -47,7 +47,7 @@ export const getWorkspace = cache(async () => {
     .limit(1)
     .single();
 
-  if (!membership?.workspaces) redirect("/login");
+  if (!membership?.workspaces) redirect("/setup");
 
   return {
     user,

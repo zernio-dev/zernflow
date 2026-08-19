@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { WORKSPACE_COOKIE } from "@/lib/workspace";
 
 export async function switchWorkspace(workspaceId: string) {
@@ -45,12 +45,19 @@ export async function createWorkspace(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return { error: "Name is required" };
 
-  const slug = trimmed
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey || serviceRoleKey === "your-service-role-key") {
+    return { error: "Set SUPABASE_SERVICE_ROLE_KEY before creating a workspace" };
+  }
+
+  const slugBase = trimmed
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+  const slug = `${slugBase || "workspace"}-${crypto.randomUUID().slice(0, 8)}`;
+  const serviceClient = await createServiceClient();
 
-  const { data: workspace, error } = await supabase
+  const { data: workspace, error } = await serviceClient
     .from("workspaces")
     .insert({ name: trimmed, slug })
     .select("id")
@@ -60,12 +67,18 @@ export async function createWorkspace(name: string) {
     return { error: error?.message || "Failed to create workspace" };
   }
 
-  // Add user as owner
-  await supabase.from("workspace_members").insert({
+  const { error: membershipError } = await serviceClient
+    .from("workspace_members")
+    .insert({
     workspace_id: workspace.id,
     user_id: user.id,
     role: "owner",
   });
+
+  if (membershipError) {
+    await serviceClient.from("workspaces").delete().eq("id", workspace.id);
+    return { error: membershipError.message };
+  }
 
   // Switch to new workspace
   const cookieStore = await cookies();
