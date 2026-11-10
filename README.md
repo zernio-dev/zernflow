@@ -86,6 +86,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000), sign up, and start building flows.
 
+### Self-hosting
+
+To run ZernFlow without Supabase Cloud or Vercel — Postgres, auth, realtime and
+the crons all on your own box, with Docker Compose or Dokploy — see
+[docs/self-hosting.md](docs/self-hosting.md).
+
 ## Architecture
 
 ```

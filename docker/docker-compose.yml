@@ -1,0 +1,175 @@
+# Self-hosted ZernFlow: the app plus the Supabase services it actually uses
+# (Postgres, GoTrue, PostgREST, Realtime) behind one nginx gateway, plus a cron
+# container that replaces the Vercel cron entries in vercel.json.
+#
+# Storage is deliberately absent - ZernFlow never calls storage.from().
+#
+# Copy .env.example to .env, fill it in (docker/generate-keys.mjs prints a valid
+# set), then:  docker compose --env-file .env up -d --build
+
+services:
+  db:
+    image: supabase/postgres:15.8.1.060
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: 3600
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  db-init:
+    image: postgres:15-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ./init:/init:ro
+    entrypoint: ["sh", "/init/01-roles.sh"]
+
+  auth:
+    image: supabase/gotrue:v2.174.0
+    restart: unless-stopped
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      PORT: 9999
+      API_EXTERNAL_URL: ${SUPABASE_PUBLIC_URL}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_URI_ALLOW_LIST: ${SITE_URL},${SITE_URL}/**
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      # No SMTP in the default setup, so confirm signups automatically.
+      # Set this to false and configure GOTRUE_SMTP_* to require confirmation.
+      GOTRUE_MAILER_AUTOCONFIRM: ${GOTRUE_MAILER_AUTOCONFIRM:-true}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${GOTRUE_SMTP_ADMIN_EMAIL:-admin@example.com}
+      GOTRUE_LOG_LEVEL: info
+
+  rest:
+    image: postgrest/postgrest:v12.2.12
+    restart: unless-stopped
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+      PGRST_DB_CHANNEL_ENABLED: "true"
+
+  realtime:
+    image: supabase/realtime:v2.34.47
+    restart: unless-stopped
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
+      DB_AFTER_CONNECT_QUERY: SET search_path TO _realtime
+      DB_ENC_KEY: ${REALTIME_ENC_KEY}
+      API_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${REALTIME_SECRET_KEY_BASE}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      DNS_NODES: "''"
+      RLIMIT_NOFILE: "10000"
+      APP_NAME: realtime
+      SEED_SELF_HOST: "true"
+      SELF_HOST_TENANT_NAME: realtime-dev
+      RUN_JANITOR: "true"
+    command: ["sh", "-c", "/app/bin/migrate && /app/bin/realtime eval 'Realtime.Release.seeds(Realtime.Repo)' && /app/bin/server"]
+
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - auth
+      - rest
+      - realtime
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${SUPABASE_PORT:-8100}:8000"
+
+  migrate:
+    image: postgres:15-alpine
+    restart: "no"
+    depends_on:
+      auth:
+        condition: service_started
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./init:/init:ro
+      - ../supabase/migrations:/migrations:ro
+    entrypoint: ["sh", "/init/02-migrate.sh"]
+
+  app:
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        # Next.js inlines these at build time - changing them needs a rebuild.
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+        NEXT_PUBLIC_APP_URL: ${SITE_URL}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_PUBLIC_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      NEXT_PUBLIC_APP_URL: ${SITE_URL}
+      CRON_SECRET: ${CRON_SECRET}
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+  # vercel.json runs /api/cron/jobs and /api/cron/sequences every minute.
+  # Off Vercel nothing does, and delays, scheduled jobs and sequences stall.
+  cron:
+    image: alpine:3.20
+    restart: unless-stopped
+    depends_on:
+      - app
+    command:
+      - sh
+      - -c
+      - "while true; do wget -q -T 55 -O- \"http://app:3000/api/cron/jobs?key=$${CRON_SECRET}\" >/dev/null 2>&1; wget -q -T 55 -O- \"http://app:3000/api/cron/sequences?key=$${CRON_SECRET}\" >/dev/null 2>&1; sleep 60; done"
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+
+volumes:
+  db-data:
