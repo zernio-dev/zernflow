@@ -20,6 +20,7 @@ import type {
 import { executeAiResponse } from "./nodes/ai-response";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
+import { requestPublicUrl } from "./request-public-url";
 
 export async function executeFlow(
   supabase: SupabaseClient<Database>,
@@ -767,16 +768,15 @@ async function executeHttpRequest(
       ? interpolateVariables(data.body, context.variables || {})
       : undefined;
 
-    const response = await fetch(url, {
+    const responseData = await requestPublicUrl({
       method: data.method,
+      url,
       headers: {
         "Content-Type": "application/json",
         ...data.headers,
       },
       body: data.method !== "GET" ? body : undefined,
     });
-
-    const responseData = await response.text();
 
     // Store response in variable if configured
     if (data.responseVariable && context.variables) {
