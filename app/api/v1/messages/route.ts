@@ -60,11 +60,13 @@ export async function GET(request: NextRequest) {
       (res.data as { data?: unknown[] })?.data ??
       [];
 
-    // Map Zernio messages to the shape the inbox UI expects
-    const messages = zernioMessages.map((m: any) => ({
+    // Map Zernio messages to the shape the inbox UI expects.
+    // Accept both "outgoing" (Zernio's actual enum value) and "outbound"
+    // (legacy spelling) so our own replies are correctly shown on our side.
+    const zernioMapped = zernioMessages.map((m: any) => ({
       id: m.id,
       conversation_id: conversationId,
-      direction: m.direction === "outbound" ? "outbound" : "inbound",
+      direction: m.direction === "outgoing" || m.direction === "outbound" ? "outbound" : "inbound",
       text: m.text ?? m.message ?? null,
       attachments: m.attachments?.length ? m.attachments : null,
       quick_reply_payload: null,
@@ -78,7 +80,79 @@ export async function GET(request: NextRequest) {
       created_at: m.sentAt ?? m.createdAt ?? new Date().toISOString(),
     }));
 
-    return NextResponse.json(messages);
+    // Merge with locally stored messages. Zernio is the source of truth but
+    // its API can lag or miss messages (especially outbound sends). The local
+    // table has messages the webhook stored (inbound) and flow engine stored
+    // (outbound). Dedup on platform_message_id so messages that appear in both
+    // don't render twice.
+    //
+    // IMPORTANT: The flow engine stores outbound DMs WITHOUT platform_message_id
+    // (it's NULL), while Zernio returns the same message with its own ID. So
+    // deduping on ID alone would show every DM twice. We additionally dedup on
+    // (direction, normalized_text, ±60s time window) to catch these.
+    const { data: localMessages } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    const seenIds = new Set<string>();
+    // Track outbound messages by content+time for content-based dedup
+    const outboundSignatures: Array<{ text: string; time: number }> = [];
+    const merged: Array<Record<string, unknown>> = [];
+
+    const normalize = (s: string | null): string =>
+      (s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+    for (const m of zernioMapped) {
+      const key = (m.platform_message_id || m.id) as string | null;
+      if (key && !seenIds.has(key)) {
+        seenIds.add(key);
+        merged.push(m as unknown as Record<string, unknown>);
+        // Record outbound signatures for content-based dedup
+        if (m.direction === "outbound" && m.text) {
+          outboundSignatures.push({
+            text: normalize(m.text as string),
+            time: new Date(m.created_at as string).getTime(),
+          });
+        }
+      }
+    }
+
+    if (localMessages) {
+      for (const m of localMessages) {
+        // First try ID-based dedup
+        const key = m.platform_message_id || m.id;
+        if (key && seenIds.has(key)) continue;
+
+        // For outbound messages without platform_message_id, try content-based dedup.
+        // If a Zernio message has the same text within ±60 seconds, it's the same DM.
+        if (m.direction === "outbound" && !m.platform_message_id && m.text) {
+          const normText = normalize(m.text);
+          const localTime = new Date(m.created_at).getTime();
+          const isDupe = outboundSignatures.some(
+            (sig) =>
+              sig.text === normText &&
+              Math.abs(sig.time - localTime) < 60_000, // 60-second window
+          );
+          if (isDupe) continue; // Skip — Zernio already has this message
+        }
+
+        if (key) {
+          seenIds.add(key);
+        }
+        merged.push(m as unknown as Record<string, unknown>);
+      }
+    }
+
+    // Sort merged messages by created_at for consistent chronological display
+    merged.sort((a, b) => {
+      const aTime = new Date(a.created_at as string).getTime();
+      const bTime = new Date(b.created_at as string).getTime();
+      return aTime - bTime;
+    });
+
+    return NextResponse.json(merged);
   } catch (error) {
     console.error("Failed to fetch messages from Zernio API:", error);
     return NextResponse.json(

@@ -184,10 +184,50 @@ export function MessageThread({
               `/api/v1/messages?conversationId=${conversation.id}`
             );
             if (res.ok) {
-              const freshMessages = await res.json();
+              const freshMessages: Message[] = await res.json();
               setMessages((prev) => {
-                const optimistic = prev.filter((m) => m.id.startsWith("optimistic-"));
-                return [...freshMessages, ...optimistic];
+                // Dedup: when we send a message, the POST updates
+                // last_message_at which fires this realtime handler.
+                // Zernio often already has the sent message by then, so it
+                // appears in freshMessages. We must NOT also keep the local
+                // optimistic/confirmed copy — that's what causes duplicates.
+                // Match by platform_message_id when available, and fall back
+                // to (direction + text + time window) for optimistic messages
+                // that have null IDs.
+                const freshKeys = new Set(
+                  freshMessages
+                    .map((m) => m.platform_message_id || m.id)
+                    .filter(Boolean)
+                );
+                const freshTexts = new Set(
+                  freshMessages
+                    .filter((m) => m.direction === "outbound" && m.text)
+                    .map((m) => m.text)
+                );
+                const extra = prev.filter((m) => {
+                  // Only preserve local-only messages (optimistic or sent-)
+                  if (
+                    !m.id.startsWith("optimistic-") &&
+                    !m.id.startsWith("sent-")
+                  ) {
+                    return false;
+                  }
+                  // Drop if the same platform_message_id is in fresh data
+                  if (m.platform_message_id && freshKeys.has(m.platform_message_id)) {
+                    return false;
+                  }
+                  // Drop if same outbound text is in fresh data (handles
+                  // optimistic messages with null platform_message_id)
+                  if (
+                    m.direction === "outbound" &&
+                    m.text &&
+                    freshTexts.has(m.text)
+                  ) {
+                    return false;
+                  }
+                  return true;
+                });
+                return [...freshMessages, ...extra];
               });
             }
           } catch (err) {
