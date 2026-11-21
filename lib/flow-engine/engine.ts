@@ -20,6 +20,7 @@ import type {
 } from "./types";
 import { executeAiResponse } from "./nodes/ai-response";
 import { executeFollowCheck } from "./nodes/follow-check";
+import { normalizeFlowNodes } from "./normalize-nodes";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
@@ -64,7 +65,7 @@ export async function executeFlow(
 
   if (!flow) return;
 
-  const nodes = flow.nodes as unknown as FlowNode[];
+  const nodes = normalizeFlowNodes(flow.nodes as unknown as FlowNode[]);
   const edges = flow.edges as unknown as FlowEdge[];
 
   // Get channel platform and late_account_id
@@ -166,7 +167,7 @@ export async function resumeSession(
     return;
   }
 
-  const nodes = flow.nodes as unknown as FlowNode[];
+  const nodes = normalizeFlowNodes(flow.nodes as unknown as FlowNode[]);
   const edges = flow.edges as unknown as FlowEdge[];
 
   const { data: channel } = await supabase
