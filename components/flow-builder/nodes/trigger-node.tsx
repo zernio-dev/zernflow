@@ -9,6 +9,7 @@ export interface TriggerNodeProps {
   triggerType?: string;
   keywords?: Array<{ value: string; matchType: string }>;
   alsoMatchInDms?: boolean;
+  postIds?: string[];
 }
 
 const triggerLabels: Record<string, string> = {
@@ -53,6 +54,13 @@ export function TriggerNode({ data, selected }: NodeProps) {
               .map((k) => k.value)
               .join(", ")}
             {nodeData.keywords.length > 3 && ` +${nodeData.keywords.length - 3} more`}
+          </p>
+        )}
+        {triggerType === "comment_keyword" && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {nodeData.postIds?.length
+              ? `${nodeData.postIds.length} selected ${nodeData.postIds.length === 1 ? "reel" : "reels"}`
+              : "Every post"}
           </p>
         )}
         {!nodeData.keywords?.length && triggerType !== "keyword" && (

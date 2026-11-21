@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createZernioClient } from "@/lib/zernio-client";
 import { messagePreview } from "@/lib/message-preview";
+import { mapZernioMessage } from "@/lib/inbox-messages";
+import { checkAttachment, type AttachmentKind } from "@/lib/inbox-upload";
+import { uploadToZernio } from "@/lib/zernio-media";
 
 /**
  * GET /api/v1/messages?conversationId=...
@@ -23,7 +26,7 @@ export async function GET(request: NextRequest) {
   // Look up the Zernio conversation ID and workspace API key
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("late_conversation_id, workspace_id, channels(late_account_id)")
+    .select("late_conversation_id, workspace_id, contact_id, channels(late_account_id)")
     .eq("id", conversationId)
     .single();
 
@@ -49,10 +52,22 @@ export async function GET(request: NextRequest) {
   // Fetch messages from Zernio API
   try {
     const zernio = createZernioClient(workspace.late_api_key_encrypted);
-    const res = await zernio.messages.getInboxConversationMessages({
+    const ids = {
       path: { conversationId: conversation.late_conversation_id },
       query: { accountId: channel.late_account_id },
-    });
+    };
+    // The conversation list rarely carries a profile picture, but the single conversation does
+    // when Instagram shares one (people who messaged recently). Fetch both at once; a failed
+    // picture lookup never blocks the messages.
+    const [res, detail] = await Promise.all([
+      zernio.messages.getInboxConversationMessages(ids),
+      zernio.messages.getInboxConversation(ids).catch(() => null),
+    ]);
+    const d = detail?.data as { data?: { participantPicture?: string | null }; participantPicture?: string | null } | undefined;
+    const picture = d?.data?.participantPicture ?? d?.participantPicture ?? null;
+    if (picture && conversation.contact_id) {
+      await supabase.from("contacts").update({ avatar_url: picture }).eq("id", conversation.contact_id);
+    }
 
     // The Zernio endpoint returns { success, messages: [...] } — NOT { data }.
     const zernioMessages =
@@ -61,24 +76,10 @@ export async function GET(request: NextRequest) {
       [];
 
     // Map Zernio messages to the shape the inbox UI expects
-    const messages = zernioMessages.map((m: any) => ({
-      id: m.id,
-      conversation_id: conversationId,
-      direction: m.direction === "outbound" ? "outbound" : "inbound",
-      text: m.text ?? m.message ?? null,
-      attachments: m.attachments?.length ? m.attachments : null,
-      quick_reply_payload: null,
-      postback_payload: null,
-      callback_data: null,
-      platform_message_id: m.platformMessageId ?? null,
-      sent_by_flow_id: null,
-      sent_by_node_id: null,
-      sent_by_user_id: null,
-      status: "sent",
-      created_at: m.sentAt ?? m.createdAt ?? new Date().toISOString(),
-    }));
+    const messages = zernioMessages.map((m) => mapZernioMessage(m as Parameters<typeof mapZernioMessage>[0], conversationId));
 
-    return NextResponse.json(messages);
+    // The open chat shows the picture straight away; the list picks it up on the next load.
+    return NextResponse.json(messages, picture ? { headers: { "x-contact-avatar": picture } } : undefined);
   } catch (error) {
     console.error("Failed to fetch messages from Zernio API:", error);
     return NextResponse.json(
@@ -100,12 +101,23 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json();
-  const { conversationId, text } = body;
+  // JSON for a plain text reply, multipart when a file is attached.
+  let conversationId: string | undefined;
+  let text: string | undefined;
+  let file: File | null = null;
+  if (request.headers.get("content-type")?.includes("multipart/form-data")) {
+    const form = await request.formData();
+    conversationId = form.get("conversationId")?.toString();
+    text = form.get("text")?.toString() || undefined;
+    const picked = form.get("file");
+    file = picked instanceof File && picked.size > 0 ? picked : null;
+  } else {
+    ({ conversationId, text } = await request.json());
+  }
 
-  if (!conversationId || !text) {
+  if (!conversationId || (!text && !file)) {
     return NextResponse.json(
-      { error: "conversationId and text required" },
+      { error: "conversationId and text or a file required" },
       { status: 400 }
     );
   }
@@ -143,12 +155,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "API key not configured" }, { status: 400 });
   }
 
+  // Check the file before touching the network, so the user gets a plain reason.
+  let attachment: { url: string; kind: AttachmentKind; name: string } | null = null;
+  if (file) {
+    const check = checkAttachment(file.type, file.size, conversation.platform);
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
+    attachment = { url: "", kind: check.kind, name: file.name };
+  }
+
   // Send via Zernio SDK — Zernio stores the message, no local insert needed
   try {
     const zernio = createZernioClient(workspace.late_api_key_encrypted);
+
+    // Zernio takes a public URL, so park the file in its media storage first.
+    if (file && attachment) attachment.url = await uploadToZernio(zernio, file);
+
     const res = await zernio.messages.sendInboxMessage({
       path: { conversationId: conversation.late_conversation_id },
-      body: { accountId: channel.late_account_id, message: text },
+      body: {
+        accountId: channel.late_account_id,
+        ...(text ? { message: text } : {}),
+        ...(attachment
+          ? { attachmentUrl: attachment.url, attachmentType: attachment.kind, attachmentName: attachment.name }
+          : {}),
+      },
     });
 
     const messageId = (res.data as any)?.data?.messageId ?? null;
@@ -158,7 +188,7 @@ export async function POST(request: NextRequest) {
       .from("conversations")
       .update({
         last_message_at: new Date().toISOString(),
-        last_message_preview: messagePreview(text),
+        last_message_preview: text ? messagePreview(text) : `[${attachment?.kind ?? "attachment"}]`,
       })
       .eq("id", conversationId);
 
@@ -168,8 +198,10 @@ export async function POST(request: NextRequest) {
         id: messageId ?? `sent-${Date.now()}`,
         conversation_id: conversationId,
         direction: "outbound",
-        text,
-        attachments: null,
+        text: text ?? null,
+        attachments: attachment
+          ? [{ type: attachment.kind, url: attachment.url, previewUrl: null, filename: attachment.name }]
+          : null,
         quick_reply_payload: null,
         postback_payload: null,
         callback_data: null,

@@ -5,6 +5,9 @@
  */
 
 import type { Node, Edge } from "@xyflow/react";
+import { decideFollowBranch, followCheckVariable, type FollowBranch } from "./follow-branch";
+import { normalizeFlowNodes } from "./normalize-nodes";
+import { handleMatches } from "./branch-handle";
 
 // --- Types ---
 
@@ -34,6 +37,7 @@ export type SimulationStepResult =
   | { type: "ai_response"; mode: "skipped" | "generated"; text?: string }
   | { type: "split"; selectedPath: string; weight: number }
   | { type: "smart_delay" }
+  | { type: "follow_check"; following: boolean; branch: FollowBranch; misses: number }
   | { type: "human_takeover" }
   | { type: "go_to_flow"; flowId: string }
   | { type: "enroll_sequence"; sequenceId: string }
@@ -50,6 +54,8 @@ export interface SimulationConfig {
     tags?: string[];
     customFields?: Record<string, string>;
     isSubscribed?: boolean;
+    /** Whether the test contact follows the account, for Follow Check nodes. Defaults to true. */
+    isFollower?: boolean;
   };
 }
 
@@ -116,6 +122,8 @@ export function simulateFlow(
   edges: Edge[],
   config: SimulationConfig
 ): SimulationResult {
+  // Palette actions are stored as type "action"; test them as the engine will run them.
+  nodes = normalizeFlowNodes(nodes);
   const steps: SimulationStep[] = [];
   const errors: string[] = [];
   const variables: Record<string, string> = {
@@ -143,7 +151,8 @@ export function simulateFlow(
     .filter((k) => k.length > 0);
   let triggerMatched = false;
 
-  if (triggerType === "keyword") {
+  // A comment flow is tested by typing the comment, so it matches the same way a DM keyword does.
+  if (triggerType === "keyword" || triggerType === "comment_keyword") {
     const msg = config.incomingMessage.toLowerCase();
     triggerMatched =
       keywords.length === 0 ||
@@ -396,6 +405,25 @@ export function simulateFlow(
         break;
       }
 
+      case "followCheck": {
+        const counter = followCheckVariable(node.id);
+        const following = config.mockContact?.isFollower ?? true;
+        const { branch, misses } = decideFollowBranch(
+          following,
+          Number(variables[counter] ?? 0) || 0,
+          Number(data.maxChecks ?? 0)
+        );
+        variables[counter] = String(misses);
+        steps.push({
+          nodeId: node.id,
+          nodeType: "followCheck",
+          nodeLabel: label,
+          result: { type: "follow_check", following, branch, misses },
+        });
+        nextHandle = branch;
+        break;
+      }
+
       case "humanTakeover": {
         steps.push({
           nodeId: node.id,
@@ -494,7 +522,7 @@ export function simulateFlow(
     let nextEdge: Edge | undefined;
     if (nextHandle) {
       nextEdge = edges.find(
-        (e) => e.source === node.id && e.sourceHandle === nextHandle
+        (e) => e.source === node.id && handleMatches(e.sourceHandle, nextHandle!)
       );
     }
     if (!nextEdge) {

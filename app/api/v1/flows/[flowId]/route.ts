@@ -58,6 +58,8 @@ export async function PUT(
   if (body.nodes !== undefined) update.nodes = body.nodes;
   if (body.edges !== undefined) update.edges = body.edges;
   if (body.viewport !== undefined) update.viewport = body.viewport;
+  // Pausing only: going live must go through /publish, which also syncs the triggers.
+  if (body.status === "draft") update.status = "draft";
 
   const { data: flow, error } = await supabase
     .from("flows")

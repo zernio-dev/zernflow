@@ -59,6 +59,7 @@ const categories: PaletteCategory[] = [
     name: "Logic",
     items: [
       { type: "condition", nodeType: "condition", label: "Condition", icon: GitBranch },
+      { type: "followCheck", nodeType: "followCheck", label: "Follow Check", icon: UserCheck },
       { type: "delay", nodeType: "delay", label: "Delay", icon: Clock },
       {
         type: "action",

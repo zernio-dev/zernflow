@@ -27,6 +27,7 @@ interface ZernioInboxConversation {
   participantId?: string;
   participantName?: string;
   participantPicture?: string | null;
+  participantUsername?: string | null;
   lastMessage?: string;
   updatedTime?: string;
   status?: "active" | "archived";
@@ -69,11 +70,22 @@ export async function upsertContactForSender({
     .single();
 
   if (existingContactChannel) {
-    if (stampExisting) {
+    // Keep the picture current: it was only ever saved on the first contact insert, but
+    // Instagram often has no picture then and its picture links expire after a few days.
+    const update = {
+      ...(stampExisting ? { last_interaction_at: interactionAt } : {}),
+      ...(senderPicture ? { avatar_url: senderPicture } : {}),
+    };
+    if (Object.keys(update).length > 0) {
+      await supabase.from("contacts").update(update).eq("id", existingContactChannel.contact_id);
+    }
+    // The @handle was only stored on first contact too; keep it for the profile link.
+    if (senderUsername) {
       await supabase
-        .from("contacts")
-        .update({ last_interaction_at: interactionAt })
-        .eq("id", existingContactChannel.contact_id);
+        .from("contact_channels")
+        .update({ platform_username: senderUsername })
+        .eq("channel_id", channel.id)
+        .eq("platform_sender_id", senderId);
     }
     return { contactId: existingContactChannel.contact_id, existed: true };
   }
@@ -221,6 +233,7 @@ async function importConversation({
     senderId: conv.participantId!,
     senderName: conv.participantName || conv.participantId!,
     senderPicture: conv.participantPicture || null,
+    senderUsername: conv.participantUsername || null,
     interactionAt,
     stampExisting: false,
   });

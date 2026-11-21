@@ -5,6 +5,7 @@ import { Search, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PlatformIcon } from "@/components/platform-icon";
+import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import type { Database, Platform, ConversationStatus } from "@/lib/types/database";
 
 type Conversation = Database["public"]["Tables"]["conversations"]["Row"] & {
@@ -172,17 +173,11 @@ export function ConversationList({
             >
               {/* Avatar with platform badge */}
               <div className="relative flex-shrink-0">
-                {conversation.contacts?.avatar_url ? (
-                  <img
-                    src={conversation.contacts.avatar_url}
-                    alt=""
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                    {conversation.contacts?.display_name?.[0]?.toUpperCase() ?? "?"}
-                  </div>
-                )}
+                <ContactAvatar
+                  name={conversation.contacts?.display_name}
+                  src={conversation.contacts?.avatar_url}
+                  className="h-10 w-10 text-sm"
+                />
                 <div className="absolute -bottom-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-background bg-background">
                   <PlatformIcon
                     platform={conversation.platform}

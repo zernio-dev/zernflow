@@ -16,11 +16,15 @@ import type {
   PrivateReplyNodeData,
   AiResponseNodeData,
   EnrollSequenceNodeData,
+  FollowCheckNodeData,
 } from "./types";
 import { executeAiResponse } from "./nodes/ai-response";
+import { executeFollowCheck } from "./nodes/follow-check";
+import { normalizeFlowNodes } from "./normalize-nodes";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
+import { handleMatches } from "./branch-handle";
 
 export async function executeFlow(
   supabase: SupabaseClient<Database>,
@@ -62,7 +66,7 @@ export async function executeFlow(
 
   if (!flow) return;
 
-  const nodes = flow.nodes as unknown as FlowNode[];
+  const nodes = normalizeFlowNodes(flow.nodes as unknown as FlowNode[]);
   const edges = flow.edges as unknown as FlowEdge[];
 
   // Get channel platform and late_account_id
@@ -164,7 +168,7 @@ export async function resumeSession(
     return;
   }
 
-  const nodes = flow.nodes as unknown as FlowNode[];
+  const nodes = normalizeFlowNodes(flow.nodes as unknown as FlowNode[]);
   const edges = flow.edges as unknown as FlowEdge[];
 
   const { data: channel } = await supabase
@@ -288,7 +292,7 @@ async function traverseNodes(
 
   // Persist variables written by output-producing nodes so they survive
   // pauses (resumeSession reloads them from the session row).
-  if (node.type === "aiResponse" || node.type === "httpRequest") {
+  if (node.type === "aiResponse" || node.type === "httpRequest" || node.type === "followCheck") {
     await supabase
       .from("flow_sessions")
       .update({ variables: (context.variables ?? {}) as Json })
@@ -305,7 +309,7 @@ async function traverseNodes(
     // Condition/split nodes specify which handle to follow
     const handle = result.replace("handle:", "");
     nextEdge = edges.find(
-      (e) => e.source === node.id && e.sourceHandle === handle
+      (e) => e.source === node.id && handleMatches(e.sourceHandle, handle)
     );
   } else {
     nextEdge = edges.find((e) => e.source === node.id);
@@ -368,6 +372,8 @@ async function executeNode(
         .update({ waiting_for_input: true, current_node_id: node.id })
         .eq("id", sessionId);
       return "pause";
+    case "followCheck":
+      return executeFollowCheck(supabase, node.data as FollowCheckNodeData, node.id, context);
     case "enrollSequence":
       return executeEnrollSequence(supabase, node.data as EnrollSequenceNodeData, context);
     default:
@@ -385,10 +391,8 @@ async function sendFirstMessageAsPrivateReply(
   const first = data.messages[0];
   if (!first) return;
 
-  const text = interpolateVariables(
-    adaptMessage(first, context.platform ?? "instagram").text,
-    context.variables || {}
-  );
+  const adapted = adaptMessage(first, context.platform ?? "instagram");
+  const text = interpolateVariables(adapted.text, context.variables || {});
 
   try {
     await zernio.comments.sendPrivateReplyToComment({
@@ -396,7 +400,13 @@ async function sendFirstMessageAsPrivateReply(
         postId: String(context.variables!.post_id),
         commentId: String(context.variables!.comment_id),
       },
-      body: { accountId: lateAccountId, message: text },
+      // Keep the buttons and quick replies: a follow gate needs a "I followed" tap on this first DM.
+      body: {
+        accountId: lateAccountId,
+        message: text,
+        ...(adapted.quickReplies?.length ? { quickReplies: adapted.quickReplies } : {}),
+        ...(adapted.buttons?.length ? { buttons: adapted.buttons } : {}),
+      } as Parameters<typeof zernio.comments.sendPrivateReplyToComment>[0]["body"],
     });
 
     await supabase.from("messages").insert({
@@ -506,7 +516,8 @@ async function executeSendMessage(
       // Build the API body with rich messaging fields
       const body: Record<string, unknown> = {
         accountId: lateAccountId,
-        message: text,
+        // A media-only message (no text) must not send an empty caption.
+        ...(text.trim() ? { message: text } : {}),
       };
       // Actually send the media to the recipient. Previously the attachment was only
       // stored locally and never included in the send body, so flow media never

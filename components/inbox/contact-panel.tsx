@@ -8,10 +8,13 @@ import {
   Tag,
   User,
   Hash,
+  ExternalLink,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PlatformIcon } from "@/components/platform-icon";
+import { ContactAvatar } from "@/components/inbox/contact-avatar";
+import { profileLabel, profileUrl } from "@/lib/profile-link";
 import type { Database, Platform } from "@/lib/types/database";
 
 type Contact = Database["public"]["Tables"]["contacts"]["Row"];
@@ -28,6 +31,7 @@ interface ContactDetails {
   channels: {
     platform: Platform;
     platform_username: string | null;
+    platform_sender_id: string | null;
   }[];
 }
 
@@ -73,7 +77,7 @@ export function ContactPanel({
           .eq("contact_id", contactId!),
         supabase
           .from("contact_channels")
-          .select("platform_username, channels(platform)")
+          .select("platform_username, platform_sender_id, channels(platform)")
           .eq("contact_id", contactId!),
       ]);
 
@@ -92,6 +96,7 @@ export function ContactPanel({
         const channels = (channelsRes.data ?? []).map((cc) => ({
           platform: (cc.channels as unknown as { platform: Platform }).platform,
           platform_username: cc.platform_username,
+          platform_sender_id: cc.platform_sender_id,
         }));
 
         setDetails({
@@ -134,20 +139,36 @@ export function ContactPanel({
         <div className="flex-1 overflow-y-auto">
           {/* Profile section */}
           <div className="flex flex-col items-center border-b border-border p-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-xl font-semibold">
-              {details.contact.avatar_url ? (
-                <img
-                  src={details.contact.avatar_url}
-                  alt=""
-                  className="h-16 w-16 rounded-full object-cover"
-                />
-              ) : (
-                details.contact.display_name?.[0]?.toUpperCase() ?? "?"
-              )}
-            </div>
+            <ContactAvatar
+              name={details.contact.display_name}
+              src={details.contact.avatar_url}
+              className="h-16 w-16 text-xl"
+            />
             <p className="mt-3 text-sm font-semibold">
               {details.contact.display_name ?? "Unknown"}
             </p>
+            {/* The plain @handle: display names can be styled text (upside-down letters, emoji). */}
+            {details.channels.find((c) => c.platform_username)?.platform_username && (
+              <p className="text-xs text-muted-foreground">
+                @{details.channels.find((c) => c.platform_username)!.platform_username}
+              </p>
+            )}
+            {(() => {
+              const ch = details.channels.find((c) => profileUrl(c.platform, c.platform_username, c.platform_sender_id));
+              if (!ch) return null;
+              return (
+                <a
+                  href={profileUrl(ch.platform, ch.platform_username, ch.platform_sender_id)!}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+                >
+                  <PlatformIcon platform={ch.platform} className="h-3.5 w-3.5" size={14} />
+                  {profileLabel(ch.platform)}
+                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                </a>
+              );
+            })()}
             {details.contact.email && (
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {details.contact.email}
@@ -187,11 +208,19 @@ export function ContactPanel({
                       <span className="capitalize text-muted-foreground">
                         {ch.platform}
                       </span>
-                      {ch.platform_username && (
-                        <span className="truncate text-foreground">
-                          @{ch.platform_username}
-                        </span>
-                      )}
+                      {ch.platform_username &&
+                        (profileUrl(ch.platform, ch.platform_username, ch.platform_sender_id) ? (
+                          <a
+                            href={profileUrl(ch.platform, ch.platform_username, ch.platform_sender_id)!}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="truncate text-foreground hover:underline"
+                          >
+                            @{ch.platform_username}
+                          </a>
+                        ) : (
+                          <span className="truncate text-foreground">@{ch.platform_username}</span>
+                        ))}
                     </div>
                   ))}
                 </div>

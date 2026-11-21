@@ -50,6 +50,7 @@ export type NodeType =
   | "privateReply"
   | "abSplit"
   | "smartDelay"
+  | "followCheck"
   | "aiResponse"
   | "enrollSequence";
 
@@ -917,6 +918,7 @@ export interface Database {
           author_username: string | null;
           comment_text: string;
           matched_trigger_id: string | null;
+          flow_id: string | null;
           dm_sent: boolean;
           reply_sent: boolean;
           error: string | null;
@@ -933,6 +935,7 @@ export interface Database {
           author_username?: string | null;
           comment_text: string;
           matched_trigger_id?: string | null;
+          flow_id?: string | null;
           dm_sent?: boolean;
           reply_sent?: boolean;
           error?: string | null;

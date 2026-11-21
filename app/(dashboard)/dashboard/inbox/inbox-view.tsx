@@ -18,12 +18,16 @@ type Message = Database["public"]["Tables"]["messages"]["Row"];
 export function InboxView({
   conversations,
   workspaceId,
+  initialSelectedId = null,
 }: {
   conversations: Conversation[];
   workspaceId: string;
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Conversation | null>(null);
+  const [selected, setSelected] = useState<Conversation | null>(
+    () => conversations.find((c) => c.id === initialSelectedId) ?? null
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showContactPanel, setShowContactPanel] = useState(true);
@@ -71,6 +75,15 @@ export function InboxView({
         if (res.ok) {
           const data = await res.json();
           setMessages(data ?? []);
+          // A fresh profile picture found while loading: show it in the open chat now.
+          const avatar = res.headers.get("x-contact-avatar");
+          if (avatar) {
+            setSelected((s) =>
+              s && s.contacts && s.contacts.avatar_url !== avatar
+                ? { ...s, contacts: { ...s.contacts, avatar_url: avatar } }
+                : s
+            );
+          }
         } else {
           console.error("Failed to load messages:", res.status);
           setMessages([]);

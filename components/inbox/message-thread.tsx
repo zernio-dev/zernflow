@@ -2,13 +2,18 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Paperclip, Bot, User, MessageSquare, CheckCircle, Clock, RotateCcw, Loader2 } from "lucide-react";
+import { Send, Paperclip, Bot, MessageSquare, CheckCircle, Clock, RotateCcw, Loader2, X, Headset } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PlatformIcon } from "@/components/platform-icon";
+import { ContactAvatar } from "@/components/inbox/contact-avatar";
+import { MessageAttachments } from "@/components/inbox/message-attachments";
+import { ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES } from "@/lib/inbox-upload";
+import { profileUrl } from "@/lib/profile-link";
+import type { InboxAttachment } from "@/lib/inbox-messages";
 import type { Database, ConversationStatus } from "@/lib/types/database";
 
-type Message = Database["public"]["Tables"]["messages"]["Row"];
+type Message = Database["public"]["Tables"]["messages"]["Row"] & { unsupported?: boolean };
 type Conversation = Database["public"]["Tables"]["conversations"]["Row"] & {
   contacts: Database["public"]["Tables"]["contacts"]["Row"] | null;
 };
@@ -43,72 +48,80 @@ function shouldShowDateSeparator(
   return currentDate !== previousDate;
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function asAttachments(value: Message["attachments"]): InboxAttachment[] {
+  return Array.isArray(value) ? (value as unknown as InboxAttachment[]) : [];
+}
+
+function MessageBubble({
+  message,
+  contactName,
+  contactAvatar,
+  showSender,
+}: {
+  message: Message;
+  contactName: string;
+  contactAvatar: string | null;
+  showSender: boolean;
+}) {
   const isInbound = message.direction === "inbound";
   const isBot = message.sent_by_flow_id !== null;
+  const attachments = asAttachments(message.attachments);
+  const senderLabel = isInbound ? contactName : isBot ? "Bot" : "Team";
 
   return (
-    <div
-      className={cn(
-        "flex gap-2",
-        isInbound ? "justify-start" : "justify-end"
+    <div className={cn("flex flex-col", isInbound ? "items-start" : "items-end")}>
+      {showSender && (
+        <p className={cn("mb-1 text-[11px] font-medium text-muted-foreground", isInbound ? "ml-9" : "mr-9")}>
+          {senderLabel}
+        </p>
       )}
-    >
-      {isInbound && (
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-muted">
-          <User className="h-3.5 w-3.5 text-muted-foreground" />
-        </div>
-      )}
+      <div className={cn("flex w-full gap-2", isInbound ? "justify-start" : "justify-end")}>
+        {isInbound && (
+          <ContactAvatar name={contactName} src={contactAvatar} className="h-7 w-7 flex-shrink-0 text-xs" />
+        )}
 
-      <div className="max-w-[70%]">
-        <div
-          className={cn(
-            "rounded-2xl px-4 py-2 text-sm",
-            isInbound
-              ? "rounded-tl-md bg-muted text-foreground"
-              : "rounded-tr-md bg-primary text-primary-foreground"
-          )}
-        >
-          {message.text && <p className="whitespace-pre-wrap">{message.text}</p>}
-          {message.attachments && (
-            <div className="mt-1">
-              <Paperclip className="inline h-3 w-3" />
-              <span className="ml-1 text-xs opacity-70">Attachment</span>
-            </div>
-          )}
+        <div className="max-w-[70%]">
+          <div
+            className={cn(
+              "rounded-2xl px-4 py-2 text-sm",
+              isInbound
+                ? "rounded-tl-md bg-muted text-foreground"
+                : "rounded-tr-md bg-primary text-primary-foreground"
+            )}
+          >
+            {message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+            {attachments.length > 0 && <MessageAttachments attachments={attachments} />}
+            {message.unsupported && (
+              <p className="text-xs italic opacity-70">
+                This message type (for example a shared reel or story) can&apos;t be shown here. Open it in Instagram.
+              </p>
+            )}
+          </div>
+          <div
+            className={cn(
+              "mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground",
+              isInbound ? "justify-start" : "justify-end"
+            )}
+          >
+            <span>{formatMessageTime(message.created_at)}</span>
+            {!isInbound && message.status !== "sent" && (
+              <span className="capitalize">
+                {message.status === "delivered"
+                  ? "Delivered"
+                  : message.status === "failed"
+                  ? "Failed"
+                  : ""}
+              </span>
+            )}
+          </div>
         </div>
-        <div
-          className={cn(
-            "mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground",
-            isInbound ? "justify-start" : "justify-end"
-          )}
-        >
-          {isBot && (
-            <Bot className="h-3 w-3" />
-          )}
-          <span>{formatMessageTime(message.created_at)}</span>
-          {!isInbound && message.status !== "sent" && (
-            <span className="capitalize">
-              {message.status === "delivered"
-                ? "Delivered"
-                : message.status === "failed"
-                ? "Failed"
-                : ""}
-            </span>
-          )}
-        </div>
+
+        {!isInbound && (
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+            {isBot ? <Bot className="h-3.5 w-3.5 text-primary" /> : <Headset className="h-3.5 w-3.5 text-primary" />}
+          </div>
+        )}
       </div>
-
-      {!isInbound && !isBot && (
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <User className="h-3.5 w-3.5 text-primary" />
-        </div>
-      )}
-      {!isInbound && isBot && (
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <Bot className="h-3.5 w-3.5 text-primary" />
-        </div>
-      )}
     </div>
   );
 }
@@ -123,11 +136,14 @@ export function MessageThread({
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateConversationStatus = useCallback(async (status: ConversationStatus) => {
     if (!conversation || statusUpdating) return;
@@ -150,12 +166,19 @@ export function MessageThread({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+    // scrollHeight leaves out the 2px border, so add it back or a one-line box shrinks to 38px.
+    el.style.height = `${Math.min(el.scrollHeight + 2, 150)}px`;
   }, []);
 
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
+
+  // A half-written reply or picked file belongs to one conversation.
+  useEffect(() => {
+    setFile(null);
+    setFileError(null);
+  }, [conversation?.id]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -202,21 +225,46 @@ export function MessageThread({
     };
   }, [conversation?.id]);
 
+  function pickFile(picked: File | undefined) {
+    if (!picked) return;
+    if (picked.size > MAX_ATTACHMENT_BYTES) {
+      setFile(null);
+      setFileError("Files can be at most 25 MB.");
+      return;
+    }
+    setFileError(null);
+    setFile(picked);
+  }
+
   async function handleSend() {
-    if (!input.trim() || !conversation || sending) return;
+    if ((!input.trim() && !file) || !conversation || sending) return;
 
     const text = input.trim();
+    const sendingFile = file;
     setInput("");
+    setFile(null);
+    setFileError(null);
     setSending(true);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     // Optimistic update: add a temporary message immediately
     const optimisticId = `optimistic-${Date.now()}`;
+    const localUrl = sendingFile ? URL.createObjectURL(sendingFile) : null;
+    const kind = sendingFile?.type.startsWith("image/")
+      ? "image"
+      : sendingFile?.type.startsWith("video/")
+      ? "video"
+      : sendingFile?.type.startsWith("audio/")
+      ? "audio"
+      : "file";
     const optimisticMessage: Message = {
       id: optimisticId,
       conversation_id: conversation.id,
       direction: "outbound",
-      text,
-      attachments: null,
+      text: text || null,
+      attachments: sendingFile
+        ? ([{ type: kind, url: localUrl, previewUrl: null, filename: sendingFile.name }] as unknown as Message["attachments"])
+        : null,
       quick_reply_payload: null,
       postback_payload: null,
       callback_data: null,
@@ -230,11 +278,20 @@ export function MessageThread({
     setMessages((prev) => [...prev, optimisticMessage]);
 
     try {
-      const res = await fetch("/api/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: conversation.id, text }),
-      });
+      let res: Response;
+      if (sendingFile) {
+        const form = new FormData();
+        form.set("conversationId", conversation.id);
+        if (text) form.set("text", text);
+        form.set("file", sendingFile);
+        res = await fetch("/api/v1/messages", { method: "POST", body: form });
+      } else {
+        res = await fetch("/api/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationId: conversation.id, text }),
+        });
+      }
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -249,6 +306,7 @@ export function MessageThread({
       );
     } catch (err) {
       console.error("Failed to send message:", err);
+      setFileError(err instanceof Error ? err.message : "Failed to send");
       // Mark optimistic message as failed
       setMessages((prev) =>
         prev.map((m) =>
@@ -274,23 +332,22 @@ export function MessageThread({
     );
   }
 
+  const contactName = conversation.contacts?.display_name ?? "Unknown";
+  const contactAvatar = conversation.contacts?.avatar_url ?? null;
+  // The plain @handle, loaded with the inbox; display names can be styled (upside-down letters, emoji).
+  const handle =
+    (conversation.contacts as { contact_channels?: Array<{ platform_username: string | null }> } | null)
+      ?.contact_channels?.find((c) => c.platform_username)?.platform_username ?? null;
+  const profile = profileUrl(conversation.platform, handle);
+  const canSend = (!!input.trim() || !!file) && !sending;
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Header */}
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
           <div className="relative">
-            {conversation.contacts?.avatar_url ? (
-              <img
-                src={conversation.contacts.avatar_url}
-                alt=""
-                className="h-8 w-8 rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                {conversation.contacts?.display_name?.[0]?.toUpperCase() ?? "?"}
-              </div>
-            )}
+            <ContactAvatar name={contactName} src={contactAvatar} className="h-8 w-8 text-sm" />
             <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-background bg-background">
               <PlatformIcon
                 platform={conversation.platform}
@@ -299,10 +356,16 @@ export function MessageThread({
               />
             </div>
           </div>
-          <div>
-            <p className="text-sm font-medium">
-              {conversation.contacts?.display_name ?? "Unknown"}
-            </p>
+          <div className="leading-tight">
+            <p className="text-sm font-medium">{contactName}</p>
+            {handle &&
+              (profile ? (
+                <a href={profile} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+                  @{handle}
+                </a>
+              ) : (
+                <p className="text-xs text-muted-foreground">@{handle}</p>
+              ))}
           </div>
         </div>
 
@@ -364,61 +427,111 @@ export function MessageThread({
 
       {/* Messages */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
-        <div className="mx-auto max-w-2xl space-y-4">
-          {messages.map((message, i) => (
-            <div key={message.id}>
-              {shouldShowDateSeparator(message, messages[i - 1]) && (
-                <div className="my-4 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-border" />
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatDateSeparator(message.created_at)}
-                  </span>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
-              )}
-              <MessageBubble message={message} />
-            </div>
-          ))}
+        <div className="mx-auto max-w-2xl space-y-2">
+          {messages.map((message, i) => {
+            const previous = messages[i - 1];
+            const newDay = shouldShowDateSeparator(message, previous);
+            return (
+              <div key={message.id}>
+                {newDay && (
+                  <div className="my-4 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatDateSeparator(message.created_at)}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                )}
+                <MessageBubble
+                  message={message}
+                  contactName={contactName}
+                  contactAvatar={contactAvatar}
+                  showSender={newDay || !previous || previous.direction !== message.direction}
+                />
+              </div>
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Composer */}
       <div className="border-t border-border p-4">
-        <div className="mx-auto flex max-w-2xl items-end gap-2">
-          <div className="flex-1">
-            <textarea
-              ref={textareaRef}
-              value={input}
+        <div className="mx-auto max-w-2xl">
+          {(file || fileError) && (
+            <div className="mb-2 flex items-center gap-2 text-xs">
+              {file && (
+                <span className="flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2.5 py-1">
+                  <Paperclip className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{file.name}</span>
+                  <button
+                    onClick={() => setFile(null)}
+                    aria-label="Remove attachment"
+                    className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {fileError && <span className="text-red-600">{fileError}</span>}
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ATTACHMENT_ACCEPT}
+              className="hidden"
               onChange={(e) => {
-                setInput(e.target.value);
-                autoResize();
+                pickFile(e.target.files?.[0]);
+                e.target.value = "";
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Type a message..."
-              rows={1}
-              className="w-full resize-none rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              style={{ maxHeight: 150 }}
             />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending}
+              aria-label="Attach a file"
+              title="Attach an image, video, audio file or PDF"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <div className="flex-1">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  autoResize();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Type a message..."
+                rows={1}
+                // block + h-10 so the box is exactly as tall as the 40px buttons beside it (an inline
+                // textarea leaves a few pixels of baseline gap, which pushed it above the send button).
+                className="block h-10 w-full resize-none rounded-lg border border-input bg-background px-4 py-[9px] text-sm leading-5 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                style={{ maxHeight: 150 }}
+              />
+            </div>
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              aria-label="Send message"
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
+                canSend
+                  ? "bg-primary text-primary-foreground hover:opacity-90"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              <Send className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || sending}
-            aria-label="Send message"
-            className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
-              input.trim() && !sending
-                ? "bg-primary text-primary-foreground hover:opacity-90"
-                : "bg-muted text-muted-foreground"
-            )}
-          >
-            <Send className="h-4 w-4" />
-          </button>
         </div>
       </div>
     </div>

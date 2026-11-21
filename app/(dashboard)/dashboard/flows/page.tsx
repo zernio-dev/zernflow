@@ -1,6 +1,6 @@
 import { getWorkspace } from "@/lib/workspace";
 import Link from "next/link";
-import { GitBranch, Sparkles, Plug } from "lucide-react";
+import { GitBranch, Sparkles, Plug, MessageCircleReply } from "lucide-react";
 import { CreateFlowButton } from "@/components/create-flow-button";
 import { ImportFlowButton, ExportFlowButton, DeleteFlowButton } from "@/components/flow-actions";
 import type { FlowStatus } from "@/lib/types/database";
@@ -61,6 +61,13 @@ export default async function FlowsPage() {
           </div>
           <div className="flex items-center gap-3">
             <ImportFlowButton />
+            <Link
+              href="/dashboard/comments"
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 transition-colors"
+            >
+              <MessageCircleReply className="h-4 w-4" />
+              Comment to DM
+            </Link>
             <Link
               href="/dashboard/flows/templates"
               className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
