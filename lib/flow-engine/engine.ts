@@ -16,8 +16,10 @@ import type {
   PrivateReplyNodeData,
   AiResponseNodeData,
   EnrollSequenceNodeData,
+  FollowCheckNodeData,
 } from "./types";
 import { executeAiResponse } from "./nodes/ai-response";
+import { executeFollowCheck } from "./nodes/follow-check";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
@@ -288,7 +290,7 @@ async function traverseNodes(
 
   // Persist variables written by output-producing nodes so they survive
   // pauses (resumeSession reloads them from the session row).
-  if (node.type === "aiResponse" || node.type === "httpRequest") {
+  if (node.type === "aiResponse" || node.type === "httpRequest" || node.type === "followCheck") {
     await supabase
       .from("flow_sessions")
       .update({ variables: (context.variables ?? {}) as Json })
@@ -368,6 +370,8 @@ async function executeNode(
         .update({ waiting_for_input: true, current_node_id: node.id })
         .eq("id", sessionId);
       return "pause";
+    case "followCheck":
+      return executeFollowCheck(supabase, node.data as FollowCheckNodeData, node.id, context);
     case "enrollSequence":
       return executeEnrollSequence(supabase, node.data as EnrollSequenceNodeData, context);
     default:

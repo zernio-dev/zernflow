@@ -27,6 +27,7 @@ export type NodeData =
   | HumanTakeoverNodeData
   | ABSplitNodeData
   | SmartDelayNodeData
+  | FollowCheckNodeData
   | SubscribeNodeData
   | CommentReplyNodeData
   | PrivateReplyNodeData
@@ -117,6 +118,11 @@ export interface ABSplitNodeData {
 export interface SmartDelayNodeData {
   timeout: number;
   timeoutUnit: "minutes" | "hours" | "days";
+}
+
+export interface FollowCheckNodeData {
+  /** Misses allowed before the "Gave up" exit is taken. Defaults to 3. */
+  maxChecks?: number;
 }
 
 export interface SubscribeNodeData {

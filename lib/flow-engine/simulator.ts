@@ -5,6 +5,7 @@
  */
 
 import type { Node, Edge } from "@xyflow/react";
+import { decideFollowBranch, followCheckVariable, type FollowBranch } from "./follow-branch";
 
 // --- Types ---
 
@@ -34,6 +35,7 @@ export type SimulationStepResult =
   | { type: "ai_response"; mode: "skipped" | "generated"; text?: string }
   | { type: "split"; selectedPath: string; weight: number }
   | { type: "smart_delay" }
+  | { type: "follow_check"; following: boolean; branch: FollowBranch; misses: number }
   | { type: "human_takeover" }
   | { type: "go_to_flow"; flowId: string }
   | { type: "enroll_sequence"; sequenceId: string }
@@ -50,6 +52,8 @@ export interface SimulationConfig {
     tags?: string[];
     customFields?: Record<string, string>;
     isSubscribed?: boolean;
+    /** Whether the test contact follows the account, for Follow Check nodes. Defaults to true. */
+    isFollower?: boolean;
   };
 }
 
@@ -393,6 +397,25 @@ export function simulateFlow(
           result: { type: "smart_delay" },
         });
         shouldPause = true;
+        break;
+      }
+
+      case "followCheck": {
+        const counter = followCheckVariable(node.id);
+        const following = config.mockContact?.isFollower ?? true;
+        const { branch, misses } = decideFollowBranch(
+          following,
+          Number(variables[counter] ?? 0) || 0,
+          Number(data.maxChecks ?? 0)
+        );
+        variables[counter] = String(misses);
+        steps.push({
+          nodeId: node.id,
+          nodeType: "followCheck",
+          nodeLabel: label,
+          result: { type: "follow_check", following, branch, misses },
+        });
+        nextHandle = branch;
         break;
       }
 

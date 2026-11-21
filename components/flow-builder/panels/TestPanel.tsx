@@ -21,6 +21,7 @@ import {
   ListOrdered,
   Send,
   Zap,
+  UserCheck,
 } from "lucide-react";
 import {
   simulateFlow,
@@ -44,6 +45,7 @@ const stepIcons: Record<string, typeof MessageSquare> = {
   ai_response: Sparkles,
   split: Shuffle,
   smart_delay: Clock,
+  follow_check: UserCheck,
   human_takeover: Hand,
   go_to_flow: ArrowRight,
   enroll_sequence: ListOrdered,
@@ -68,6 +70,8 @@ const stepColors: Record<string, string> = {
   split: "text-pink-600 bg-pink-50 dark:text-pink-400 dark:bg-pink-950",
   smart_delay:
     "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950",
+  follow_check:
+    "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950",
   human_takeover:
     "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950",
   go_to_flow: "text-cyan-600 bg-cyan-50 dark:text-cyan-400 dark:bg-cyan-950",
@@ -93,6 +97,7 @@ export function TestPanel({
 }: TestPanelProps) {
   const [message, setMessage] = useState("help");
   const [tags, setTags] = useState("");
+  const [isFollower, setIsFollower] = useState(true);
   const [result, setResult] = useState<SimulationResult | null>(null);
 
   function runTest() {
@@ -106,6 +111,7 @@ export function TestPanel({
       mockContact: {
         tags: mockTags,
         isSubscribed: true,
+        isFollower,
       },
     });
 
@@ -228,6 +234,19 @@ export function TestPanel({
           </p>
         );
 
+      case "follow_check":
+        return (
+          <p className="text-xs text-muted-foreground">
+            {r.branch === "followed" ? (
+              <>Follows us: <strong>continues</strong></>
+            ) : r.branch === "notFollowed" ? (
+              <>Not following (check {r.misses}): <strong>asks again</strong></>
+            ) : (
+              <>Not following after {r.misses} checks: <strong>gives up</strong></>
+            )}
+          </p>
+        );
+
       case "human_takeover":
         return (
           <p className="text-xs text-muted-foreground">
@@ -347,6 +366,15 @@ export function TestPanel({
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={isFollower}
+            onChange={(e) => setIsFollower(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-input"
+          />
+          Test contact follows us (for Follow Check)
+        </label>
         <button
           onClick={runTest}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"

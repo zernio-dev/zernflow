@@ -29,6 +29,8 @@ import { NodePalette } from "./node-palette";
 import { TriggerNode } from "./nodes/trigger-node";
 import { SendMessageNode } from "./nodes/send-message-node";
 import { ConditionNode } from "./nodes/condition-node";
+import { FollowCheckNode } from "./nodes/follow-check-node";
+import { DEFAULT_MAX_FOLLOW_CHECKS } from "@/lib/flow-engine/follow-branch";
 import { DelayNode } from "./nodes/delay-node";
 import { ActionNode } from "./nodes/action-node";
 import { AiResponseNode } from "./nodes/AiResponseNode";
@@ -42,6 +44,7 @@ const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
   sendMessage: SendMessageNode,
   condition: ConditionNode,
+  followCheck: FollowCheckNode,
   delay: DelayNode,
   action: ActionNode,
   aiResponse: AiResponseNode,
@@ -64,6 +67,8 @@ function getDefaultData(type: string, actionType?: string): Record<string, unkno
       return { messages: [] };
     case "condition":
       return { conditions: [], logic: "and" };
+    case "followCheck":
+      return { maxChecks: DEFAULT_MAX_FOLLOW_CHECKS };
     case "delay":
       return { duration: 5, unit: "minutes" };
     case "aiResponse":

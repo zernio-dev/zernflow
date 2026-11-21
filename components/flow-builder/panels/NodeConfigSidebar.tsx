@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { X, Trash2, Zap, MessageSquare, GitBranch, Clock, Cog, Sparkles } from "lucide-react";
+import { X, Trash2, Zap, MessageSquare, GitBranch, Clock, Cog, Sparkles, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Edge, Node } from "@xyflow/react";
 
@@ -11,6 +11,7 @@ import { ConditionPanel } from "./ConditionPanel";
 import { DelayPanel } from "./DelayPanel";
 import { ActionPanel } from "./ActionPanel";
 import { AiResponsePanel } from "./AiResponsePanel";
+import { FollowCheckPanel } from "./FollowCheckPanel";
 
 interface NodeConfigSidebarProps {
   node: Node;
@@ -61,6 +62,10 @@ function getFlowVariables({
     variables.push("ai_response");
   }
 
+  if (nodes.some((n) => n.type === "followCheck" && upstreamIds.has(n.id))) {
+    variables.push("follow_status");
+  }
+
   for (const n of nodes) {
     if (n.type !== "httpRequest" || !upstreamIds.has(n.id)) continue;
     const responseVariable = (n.data as Record<string, unknown>)
@@ -103,6 +108,12 @@ const nodeTypeConfig: Record<string, { label: string; icon: typeof Cog; color: s
     icon: Sparkles,
     color: "bg-violet-500",
     borderColor: "border-violet-500",
+  },
+  followCheck: {
+    label: "Follow Check",
+    icon: UserCheck,
+    color: "bg-emerald-500",
+    borderColor: "border-emerald-500",
   },
   action: {
     label: "Action",
@@ -161,6 +172,8 @@ export function NodeConfigSidebar({ node, nodes, edges, onChange, onClose, onDel
         return <DelayPanel data={data} onChange={handleChange} />;
       case "aiResponse":
         return <AiResponsePanel data={data} onChange={handleChange} />;
+      case "followCheck":
+        return <FollowCheckPanel data={data} onChange={handleChange} />;
       case "action":
         return <ActionPanel data={data} onChange={handleChange} />;
       default:

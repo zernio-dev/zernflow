@@ -50,6 +50,7 @@ export type NodeType =
   | "privateReply"
   | "abSplit"
   | "smartDelay"
+  | "followCheck"
   | "aiResponse"
   | "enrollSequence";
 
