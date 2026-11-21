@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Zernio } from "./zernio-client";
-import { backfillInboxConversations } from "./inbox-sync";
+import { backfillInboxConversations, upsertContactForSender } from "./inbox-sync";
 
 interface CapturedRow {
   table: string;
@@ -75,12 +75,17 @@ function makeFakeSupabase(seed: {
           return Promise.resolve({ data: null, error: null });
         },
         update(patch: Record<string, unknown>) {
-          return {
+          // Records the update once, however many .eq() filters follow.
+          updates.push({ table, row: patch });
+          const chain = {
             eq() {
-              updates.push({ table, row: patch });
-              return Promise.resolve({ data: null, error: null });
+              return chain;
+            },
+            then(resolve: (v: { data: null; error: null }) => unknown, reject?: (r: unknown) => unknown) {
+              return Promise.resolve({ data: null, error: null }).then(resolve, reject);
             },
           };
+          return chain;
         },
         upsert(row: Record<string, unknown>, options?: Record<string, unknown>) {
           upserts.push({ table, row, options });
@@ -379,5 +384,50 @@ describe("backfillInboxConversations", () => {
 
     expect(res.imported).toBe(1);
     expect(fake.upserts[0].row).toMatchObject({ channel_id: "ch-1" });
+  });
+});
+
+describe("upsertContactForSender keeps the picture current", () => {
+  const base = {
+    channel: { id: "ch-1", workspace_id: "ws-1" },
+    senderId: "sender-1",
+    senderName: "Priti",
+    interactionAt: "2026-11-21T10:00:00.000Z",
+  };
+
+  it("saves a new picture on a contact we already know", async () => {
+    const fake = makeFakeSupabase({ contactChannelBySender: { "sender-1": "contact-1" } });
+    await upsertContactForSender({ ...base, supabase: fake.client, senderPicture: "https://cdn/p.jpg" });
+    expect(fake.updates).toEqual([
+      { table: "contacts", row: { last_interaction_at: base.interactionAt, avatar_url: "https://cdn/p.jpg" } },
+    ]);
+  });
+
+  it("does not wipe a saved picture when the sender has none", async () => {
+    const fake = makeFakeSupabase({ contactChannelBySender: { "sender-1": "contact-1" } });
+    await upsertContactForSender({ ...base, supabase: fake.client, senderPicture: null });
+    expect(fake.updates[0].row).not.toHaveProperty("avatar_url");
+  });
+
+  it("writes nothing when not stamping and there is no picture", async () => {
+    const fake = makeFakeSupabase({ contactChannelBySender: { "sender-1": "contact-1" } });
+    await upsertContactForSender({ ...base, supabase: fake.client, senderPicture: null, stampExisting: false });
+    expect(fake.updates).toHaveLength(0);
+  });
+});
+
+describe("upsertContactForSender keeps the @handle", () => {
+  it("stores the username on a contact we already know", async () => {
+    const fake = makeFakeSupabase({ contactChannelBySender: { "sender-1": "contact-1" } });
+    await upsertContactForSender({
+      supabase: fake.client,
+      channel: { id: "ch-1", workspace_id: "ws-1" },
+      senderId: "sender-1",
+      senderName: "ıɥʇǝs",
+      senderPicture: null,
+      senderUsername: "whereisronit_",
+      interactionAt: "2026-11-21T10:00:00.000Z",
+    });
+    expect(fake.updates).toContainEqual({ table: "contact_channels", row: { platform_username: "whereisronit_" } });
   });
 });
