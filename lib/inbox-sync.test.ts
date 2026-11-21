@@ -75,12 +75,17 @@ function makeFakeSupabase(seed: {
           return Promise.resolve({ data: null, error: null });
         },
         update(patch: Record<string, unknown>) {
-          return {
+          // Records the update once, however many .eq() filters follow.
+          updates.push({ table, row: patch });
+          const chain = {
             eq() {
-              updates.push({ table, row: patch });
-              return Promise.resolve({ data: null, error: null });
+              return chain;
+            },
+            then(resolve: (v: { data: null; error: null }) => unknown, reject?: (r: unknown) => unknown) {
+              return Promise.resolve({ data: null, error: null }).then(resolve, reject);
             },
           };
+          return chain;
         },
         upsert(row: Record<string, unknown>, options?: Record<string, unknown>) {
           upserts.push({ table, row, options });
@@ -408,5 +413,21 @@ describe("upsertContactForSender keeps the picture current", () => {
     const fake = makeFakeSupabase({ contactChannelBySender: { "sender-1": "contact-1" } });
     await upsertContactForSender({ ...base, supabase: fake.client, senderPicture: null, stampExisting: false });
     expect(fake.updates).toHaveLength(0);
+  });
+});
+
+describe("upsertContactForSender keeps the @handle", () => {
+  it("stores the username on a contact we already know", async () => {
+    const fake = makeFakeSupabase({ contactChannelBySender: { "sender-1": "contact-1" } });
+    await upsertContactForSender({
+      supabase: fake.client,
+      channel: { id: "ch-1", workspace_id: "ws-1" },
+      senderId: "sender-1",
+      senderName: "ıɥʇǝs",
+      senderPicture: null,
+      senderUsername: "whereisronit_",
+      interactionAt: "2026-11-21T10:00:00.000Z",
+    });
+    expect(fake.updates).toContainEqual({ table: "contact_channels", row: { platform_username: "whereisronit_" } });
   });
 });

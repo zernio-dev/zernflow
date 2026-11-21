@@ -7,7 +7,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   const { data: conversations } = await supabase
     .from("conversations")
-    .select("*, contacts(*)")
+    .select("*, contacts(*, contact_channels(platform_username))")
     .eq("workspace_id", workspace.id)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(50);
@@ -18,7 +18,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   if (openId && !list.some((c) => c.id === openId)) {
     const { data: extra } = await supabase
       .from("conversations")
-      .select("*, contacts(*)")
+      .select("*, contacts(*, contact_channels(platform_username))")
       .eq("workspace_id", workspace.id)
       .eq("id", openId)
       .maybeSingle();

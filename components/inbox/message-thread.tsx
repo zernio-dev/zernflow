@@ -9,6 +9,7 @@ import { PlatformIcon } from "@/components/platform-icon";
 import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import { MessageAttachments } from "@/components/inbox/message-attachments";
 import { ATTACHMENT_ACCEPT, MAX_ATTACHMENT_BYTES } from "@/lib/inbox-upload";
+import { profileUrl } from "@/lib/profile-link";
 import type { InboxAttachment } from "@/lib/inbox-messages";
 import type { Database, ConversationStatus } from "@/lib/types/database";
 
@@ -333,6 +334,11 @@ export function MessageThread({
 
   const contactName = conversation.contacts?.display_name ?? "Unknown";
   const contactAvatar = conversation.contacts?.avatar_url ?? null;
+  // The plain @handle, loaded with the inbox; display names can be styled (upside-down letters, emoji).
+  const handle =
+    (conversation.contacts as { contact_channels?: Array<{ platform_username: string | null }> } | null)
+      ?.contact_channels?.find((c) => c.platform_username)?.platform_username ?? null;
+  const profile = profileUrl(conversation.platform, handle);
   const canSend = (!!input.trim() || !!file) && !sending;
 
   return (
@@ -350,8 +356,16 @@ export function MessageThread({
               />
             </div>
           </div>
-          <div>
+          <div className="leading-tight">
             <p className="text-sm font-medium">{contactName}</p>
+            {handle &&
+              (profile ? (
+                <a href={profile} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+                  @{handle}
+                </a>
+              ) : (
+                <p className="text-xs text-muted-foreground">@{handle}</p>
+              ))}
           </div>
         </div>
 

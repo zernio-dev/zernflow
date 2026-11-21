@@ -27,6 +27,7 @@ interface ZernioInboxConversation {
   participantId?: string;
   participantName?: string;
   participantPicture?: string | null;
+  participantUsername?: string | null;
   lastMessage?: string;
   updatedTime?: string;
   status?: "active" | "archived";
@@ -77,6 +78,14 @@ export async function upsertContactForSender({
     };
     if (Object.keys(update).length > 0) {
       await supabase.from("contacts").update(update).eq("id", existingContactChannel.contact_id);
+    }
+    // The @handle was only stored on first contact too; keep it for the profile link.
+    if (senderUsername) {
+      await supabase
+        .from("contact_channels")
+        .update({ platform_username: senderUsername })
+        .eq("channel_id", channel.id)
+        .eq("platform_sender_id", senderId);
     }
     return { contactId: existingContactChannel.contact_id, existed: true };
   }
@@ -224,6 +233,7 @@ async function importConversation({
     senderId: conv.participantId!,
     senderName: conv.participantName || conv.participantId!,
     senderPicture: conv.participantPicture || null,
+    senderUsername: conv.participantUsername || null,
     interactionAt,
     stampExisting: false,
   });
