@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   // Look up the Zernio conversation ID and workspace API key
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("late_conversation_id, workspace_id, channels(late_account_id)")
+    .select("late_conversation_id, workspace_id, contact_id, channels(late_account_id)")
     .eq("id", conversationId)
     .single();
 
@@ -49,10 +49,22 @@ export async function GET(request: NextRequest) {
   // Fetch messages from Zernio API
   try {
     const zernio = createZernioClient(workspace.late_api_key_encrypted);
-    const res = await zernio.messages.getInboxConversationMessages({
+    const ids = {
       path: { conversationId: conversation.late_conversation_id },
       query: { accountId: channel.late_account_id },
-    });
+    };
+    // The conversation list rarely carries a profile picture, but the single conversation does
+    // when Instagram shares one (people who messaged recently). Fetch both at once; a failed
+    // picture lookup never blocks the messages.
+    const [res, detail] = await Promise.all([
+      zernio.messages.getInboxConversationMessages(ids),
+      zernio.messages.getInboxConversation(ids).catch(() => null),
+    ]);
+    const d = detail?.data as { data?: { participantPicture?: string | null }; participantPicture?: string | null } | undefined;
+    const picture = d?.data?.participantPicture ?? d?.participantPicture ?? null;
+    if (picture && conversation.contact_id) {
+      await supabase.from("contacts").update({ avatar_url: picture }).eq("id", conversation.contact_id);
+    }
 
     // The Zernio endpoint returns { success, messages: [...] } — NOT { data }.
     const zernioMessages =
@@ -78,7 +90,8 @@ export async function GET(request: NextRequest) {
       created_at: m.sentAt ?? m.createdAt ?? new Date().toISOString(),
     }));
 
-    return NextResponse.json(messages);
+    // The open chat shows the picture straight away; the list picks it up on the next load.
+    return NextResponse.json(messages, picture ? { headers: { "x-contact-avatar": picture } } : undefined);
   } catch (error) {
     console.error("Failed to fetch messages from Zernio API:", error);
     return NextResponse.json(
