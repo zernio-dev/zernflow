@@ -4,6 +4,7 @@ import { createZernioClient } from "@/lib/zernio-client";
 import { messagePreview } from "@/lib/message-preview";
 import { mapZernioMessage } from "@/lib/inbox-messages";
 import { checkAttachment, type AttachmentKind } from "@/lib/inbox-upload";
+import { uploadToZernio } from "@/lib/zernio-media";
 
 /**
  * GET /api/v1/messages?conversationId=...
@@ -153,25 +154,8 @@ export async function POST(request: NextRequest) {
   try {
     const zernio = createZernioClient(workspace.late_api_key_encrypted);
 
-    if (file && attachment) {
-      // Zernio takes a public URL, so park the file in its media storage first.
-      const presign = await zernio.media.getMediaPresignedUrl({
-        body: {
-          filename: file.name,
-          contentType: file.type as never,
-          size: file.size,
-        },
-      });
-      const { uploadUrl, publicUrl } = (presign.data ?? {}) as { uploadUrl?: string; publicUrl?: string };
-      if (!uploadUrl || !publicUrl) throw new Error("Zernio did not return an upload link");
-      const put = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: Buffer.from(await file.arrayBuffer()),
-      });
-      if (!put.ok) throw new Error(`Upload failed (${put.status})`);
-      attachment.url = publicUrl;
-    }
+    // Zernio takes a public URL, so park the file in its media storage first.
+    if (file && attachment) attachment.url = await uploadToZernio(zernio, file);
 
     const res = await zernio.messages.sendInboxMessage({
       path: { conversationId: conversation.late_conversation_id },

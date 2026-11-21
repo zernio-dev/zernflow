@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, CircleX, Info, Link2, RotateCcw, Send } from "lucide-react";
+import { CheckCircle2, CircleAlert, CircleX, Info, Link2, Paperclip, RotateCcw, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   startPreview,
@@ -92,9 +92,20 @@ export function ChatPreview({
         const live = !!state?.waitingNodeId && index === lastUs;
         return (
           <div key={index} className="flex flex-col items-end gap-1.5">
-            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-md bg-primary px-3 py-2 text-xs text-primary-foreground">
-              {item.text || "(empty message)"}
-            </div>
+            {(item.text || !item.media) && (
+              <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-md bg-primary px-3 py-2 text-xs text-primary-foreground">
+                {item.text || "(empty message)"}
+              </div>
+            )}
+            {item.media &&
+              (item.media.type === "image" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.media.url} alt="" className="max-h-40 max-w-[70%] rounded-xl object-cover" />
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-xl bg-primary/15 px-3 py-2 text-[11px] font-medium text-primary">
+                  <Paperclip className="h-3 w-3" /> {item.media.type === "video" ? "Video" : "Audio"} attached
+                </span>
+              ))}
             {item.links.map((title) => (
               <span key={title} className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2.5 py-1 text-[11px] text-primary">
                 <Link2 className="h-3 w-3" /> {title}

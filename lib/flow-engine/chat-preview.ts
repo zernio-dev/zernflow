@@ -23,7 +23,14 @@ export interface PreviewEdge {
 export type PreviewItem =
   | { kind: "comment"; text: string }
   | { kind: "public_reply"; text: string }
-  | { kind: "us"; nodeId: string; text: string; links: string[]; quickReplies: string[] }
+  | {
+      kind: "us";
+      nodeId: string;
+      text: string;
+      links: string[];
+      quickReplies: string[];
+      media: { type: string; url: string } | null;
+    }
   | { kind: "them"; text: string }
   | { kind: "note"; tone: "good" | "warn" | "bad" | "info"; text: string };
 
@@ -41,6 +48,9 @@ const MAX_STEPS = 60;
 type MessageData = {
   messages?: Array<{
     text?: string;
+    mediaUrl?: string;
+    mediaType?: string;
+    imageUrl?: string;
     quickReplies?: Array<{ title: string }>;
     buttons?: Array<{ title: string; type?: string }>;
   }>;
@@ -100,6 +110,11 @@ function run(
             text: m.text ?? "",
             links: (m.buttons ?? []).map((b) => b.title),
             quickReplies: (m.quickReplies ?? []).map((q) => q.title),
+            media: m.mediaUrl
+              ? { type: m.mediaType ?? "image", url: m.mediaUrl }
+              : m.imageUrl
+                ? { type: "image", url: m.imageUrl }
+                : null,
           });
         }
         current = nextNodeId(edges, node.id);

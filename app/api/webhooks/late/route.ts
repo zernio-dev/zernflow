@@ -296,11 +296,29 @@ async function processMessageEvent(
         message: incomingMessage,
         isFirstMessage: !contact.existed,
       });
-      if (trigger) {
+
+      // A reply to a paused flow (a Smart Delay waiting for a tap such as "I followed") usually
+      // matches no trigger. executeFlow resumes the waiting session first, so call it for that too;
+      // before, such replies were dropped and the flow stayed paused forever.
+      const waiting = trigger
+        ? null
+        : (
+            await supabase
+              .from("flow_sessions")
+              .select("flow_id")
+              .eq("contact_id", contactId)
+              .eq("channel_id", channel.id)
+              .eq("status", "active")
+              .eq("waiting_for_input", true)
+              .limit(1)
+              .maybeSingle()
+          ).data;
+
+      if (trigger || waiting) {
         try {
           await executeFlow(supabase, {
-            triggerId: trigger.id,
-            flowId: trigger.flow_id,
+            triggerId: trigger?.id ?? "",
+            flowId: trigger?.flow_id ?? waiting!.flow_id,
             channelId: channel.id,
             contactId,
             conversationId: conversation.id,

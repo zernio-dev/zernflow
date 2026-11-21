@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, Loader2, MessageCircle, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PickerPost } from "@/lib/instagram-posts";
+import { useInstagramPosts } from "@/components/use-instagram-posts";
 
 /**
  * Chooses which Instagram posts or reels a comment trigger listens to.
@@ -20,29 +20,8 @@ export function ReelPicker({
   compact?: boolean;
 }) {
   const [mode, setMode] = useState<"all" | "some">(value.length > 0 ? "some" : "all");
-  const [posts, setPosts] = useState<PickerPost[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/v1/posts");
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || "Could not load your posts.");
-      setPosts(body as PickerPost[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load your posts.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch lazily: only when the user chooses specific reels.
-  useEffect(() => {
-    if (mode === "some" && posts === null && !loading && !error) void load();
-  }, [mode, posts, loading, error, load]);
+  // Fetch lazily: only once the user chooses specific reels.
+  const { posts, error, loading, reload: load } = useInstagramPosts(mode === "some");
 
   function toggle(id: string) {
     onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);

@@ -264,6 +264,7 @@ export async function processComment({
       channel,
       comment,
       triggerId: matchedTrigger.id,
+      flowId: matchedTrigger.flow_id,
       dmSent,
       replySent,
     });
@@ -276,6 +277,7 @@ export async function processComment({
       channel,
       comment,
       triggerId: matchedTrigger.id,
+      flowId: matchedTrigger.flow_id,
       error: errorMessage,
     });
     return { matched: true, triggerId: matchedTrigger.id, error: errorMessage };
@@ -287,6 +289,7 @@ async function logComment({
   channel,
   comment,
   triggerId,
+  flowId = null,
   dmSent = false,
   replySent = false,
   error,
@@ -295,6 +298,8 @@ async function logComment({
   channel: Channel;
   comment: IncomingComment;
   triggerId: string | null;
+  /** Kept beside the trigger: republishing replaces trigger rows, the flow stays. */
+  flowId?: string | null;
   dmSent?: boolean;
   replySent?: boolean;
   error?: string;
@@ -310,6 +315,7 @@ async function logComment({
       author_username: comment.author.username || null,
       comment_text: comment.text,
       matched_trigger_id: triggerId,
+      flow_id: flowId,
       dm_sent: dmSent,
       reply_sent: replySent,
       ...(error ? { error } : {}),

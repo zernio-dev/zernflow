@@ -516,7 +516,8 @@ async function executeSendMessage(
       // Build the API body with rich messaging fields
       const body: Record<string, unknown> = {
         accountId: lateAccountId,
-        message: text,
+        // A media-only message (no text) must not send an empty caption.
+        ...(text.trim() ? { message: text } : {}),
       };
       // Actually send the media to the recipient. Previously the attachment was only
       // stored locally and never included in the send body, so flow media never

@@ -18,12 +18,16 @@ type Message = Database["public"]["Tables"]["messages"]["Row"];
 export function InboxView({
   conversations,
   workspaceId,
+  initialSelectedId = null,
 }: {
   conversations: Conversation[];
   workspaceId: string;
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Conversation | null>(null);
+  const [selected, setSelected] = useState<Conversation | null>(
+    () => conversations.find((c) => c.id === initialSelectedId) ?? null
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showContactPanel, setShowContactPanel] = useState(true);
