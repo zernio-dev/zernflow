@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ReelPicker } from "@/components/reel-picker";
 import type { TriggerType } from "@/lib/types/database";
 
 interface Keyword {
@@ -227,6 +228,36 @@ export function TriggerPanel({ data: rawData, onChange }: TriggerPanelProps) {
             </label>
           )}
         </div>
+      )}
+
+      {/* Comment triggers: which posts, and the public reply */}
+      {triggerType === "comment_keyword" && (
+        <>
+          <div>
+            <label className="mb-2 block text-xs font-semibold text-foreground">Which posts</label>
+            <ReelPicker
+              compact
+              value={(data.postIds as string[] | undefined) ?? []}
+              onChange={(postIds) => onChange({ ...data, postIds })}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Use a different flow per reel, for example one that asks for a follow and one that does not. A flow for
+              chosen reels wins over an &quot;every post&quot; flow.
+            </p>
+          </div>
+          <div>
+            <label className="mb-2 block text-xs font-semibold text-foreground">
+              Public reply under the comment <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={(data.replyText as string | undefined) ?? ""}
+              onChange={(e) => onChange({ ...data, replyText: e.target.value })}
+              placeholder="Check your DMs 📩"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+        </>
       )}
 
       {/* Payload Section */}
