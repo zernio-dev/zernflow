@@ -23,6 +23,7 @@ import {
   Zap,
   UserCheck,
 } from "lucide-react";
+import { ChatPreview } from "../chat-preview";
 import {
   simulateFlow,
   type SimulationStep,
@@ -98,6 +99,7 @@ export function TestPanel({
   const [message, setMessage] = useState("help");
   const [tags, setTags] = useState("");
   const [isFollower, setIsFollower] = useState(true);
+  const [tab, setTab] = useState<"chat" | "steps">("chat");
   const [result, setResult] = useState<SimulationResult | null>(null);
 
   function runTest() {
@@ -321,6 +323,45 @@ export function TestPanel({
     }
   }
 
+  const tabs = (
+    <div className="flex gap-1 border-b border-border px-4 py-2">
+      {(["chat", "steps"] as const).map((t) => (
+        <button
+          key={t}
+          onClick={() => setTab(t)}
+          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+            tab === t ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          }`}
+        >
+          {t === "chat" ? "Chat preview" : "Step by step"}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === "chat") {
+    return (
+      <div className="flex w-80 flex-col border-l border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Play className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Test Flow</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {tabs}
+        <div className="flex min-h-0 flex-1 flex-col p-3">
+          <ChatPreview nodes={nodes} edges={edges} className="min-h-0 flex-1" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex w-80 flex-col border-l border-border bg-card">
       {/* Header */}
@@ -336,6 +377,8 @@ export function TestPanel({
           <X className="h-4 w-4" />
         </button>
       </div>
+
+      {tabs}
 
       {/* Config */}
       <div className="space-y-3 border-b border-border p-4">

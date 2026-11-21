@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Loader2, MessageCircle, Plus, UserCheck, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, Plus, UserCheck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReelPicker } from "@/components/reel-picker";
+import { ChatPreview } from "@/components/flow-builder/chat-preview";
 import {
   buildCommentDmFlow,
   defaultCommentDmConfig,
@@ -42,25 +43,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
-}
-
-function Bubble({ children, from }: { children: React.ReactNode; from: "them" | "us" }) {
-  return (
-    <div className={cn("flex", from === "us" ? "justify-end" : "justify-start")}>
-      <div
-        className={cn(
-          "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-xs",
-          from === "us" ? "rounded-tr-md bg-primary text-primary-foreground" : "rounded-tl-md bg-muted"
-        )}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full border border-primary/40 px-2.5 py-0.5 text-[11px] text-primary">{children}</span>;
 }
 
 export function CommentDmWizard({ accountHandle, hasInstagram }: { accountHandle: string; hasInstagram: boolean }) {
@@ -114,6 +96,8 @@ export function CommentDmWizard({ accountHandle, hasInstagram }: { accountHandle
   }
 
   const f = config.follow;
+  // The preview runs the same flow that Save and Publish would create.
+  const previewFlow = useMemo(() => buildCommentDmFlow(config), [config]);
   const reelText =
     config.postIds.length === 0
       ? "every post"
@@ -297,44 +281,9 @@ export function CommentDmWizard({ accountHandle, hasInstagram }: { accountHandle
         </div>
 
         {/* Live preview of what the person sees */}
-        <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div className="rounded-xl border border-border bg-card p-4">
-            <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-              <MessageCircle className="h-3.5 w-3.5" /> What they see · {reelText}
-            </p>
-            <div className="space-y-2">
-              <Bubble from="them">
-                <span className="opacity-60">Comment: </span>
-                {config.keywords[0] ?? "your keyword"}
-              </Bubble>
-              {config.publicReply.trim() && <Bubble from="us">{config.publicReply}</Bubble>}
-              <div className="my-2 h-px bg-border" />
-              {config.requireFollow ? (
-                <>
-                  <Bubble from="us">{f.ask || "…"}</Bubble>
-                  <div className="flex justify-end">
-                    <Chip>{f.buttonLabel || "Button"}</Chip>
-                  </div>
-                  <p className="pt-1 text-[11px] font-medium text-emerald-600">If they follow</p>
-                  <Bubble from="us">
-                    {config.message || "…"}
-                    {"\n"}
-                    {config.linkUrl || "https://…"}
-                  </Bubble>
-                  <p className="pt-1 text-[11px] font-medium text-amber-600">If not yet</p>
-                  <Bubble from="us">{f.retry || "…"}</Bubble>
-                  <p className="pt-1 text-[11px] font-medium text-red-500">After {f.maxChecks || 3} tries</p>
-                  <Bubble from="us">{f.giveUp || "…"}</Bubble>
-                </>
-              ) : (
-                <Bubble from="us">
-                  {config.message || "…"}
-                  {"\n"}
-                  {config.linkUrl || "https://…"}
-                </Bubble>
-              )}
-            </div>
-          </div>
+        <aside className="space-y-2 lg:sticky lg:top-6 lg:self-start">
+          <ChatPreview nodes={previewFlow.nodes} edges={previewFlow.edges} accountHandle={accountHandle} className="h-[560px]" />
+          <p className="px-1 text-[11px] text-muted-foreground">Runs on {reelText}. A dry run, nothing is sent to Instagram.</p>
         </aside>
       </div>
     </div>

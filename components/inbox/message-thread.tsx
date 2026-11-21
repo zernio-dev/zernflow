@@ -165,7 +165,8 @@ export function MessageThread({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+    // scrollHeight leaves out the 2px border, so add it back or a one-line box shrinks to 38px.
+    el.style.height = `${Math.min(el.scrollHeight + 2, 150)}px`;
   }, []);
 
   useEffect(() => {
@@ -497,7 +498,9 @@ export function MessageThread({
                 }}
                 placeholder="Type a message..."
                 rows={1}
-                className="w-full resize-none rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                // block + h-10 so the box is exactly as tall as the 40px buttons beside it (an inline
+                // textarea leaves a few pixels of baseline gap, which pushed it above the send button).
+                className="block h-10 w-full resize-none rounded-lg border border-input bg-background px-4 py-[9px] text-sm leading-5 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 style={{ maxHeight: 150 }}
               />
             </div>
