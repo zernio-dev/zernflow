@@ -21,6 +21,7 @@ import { executeAiResponse } from "./nodes/ai-response";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
+import { normalizeFlowNodes } from "./normalize-nodes";
 
 export async function executeFlow(
   supabase: SupabaseClient<Database>,
@@ -62,7 +63,7 @@ export async function executeFlow(
 
   if (!flow) return;
 
-  const nodes = flow.nodes as unknown as FlowNode[];
+  const nodes = normalizeFlowNodes(flow.nodes as unknown as FlowNode[]);
   const edges = flow.edges as unknown as FlowEdge[];
 
   // Get channel platform and late_account_id
@@ -164,7 +165,7 @@ export async function resumeSession(
     return;
   }
 
-  const nodes = flow.nodes as unknown as FlowNode[];
+  const nodes = normalizeFlowNodes(flow.nodes as unknown as FlowNode[]);
   const edges = flow.edges as unknown as FlowEdge[];
 
   const { data: channel } = await supabase
