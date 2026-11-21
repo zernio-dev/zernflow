@@ -7,6 +7,7 @@
 import type { Node, Edge } from "@xyflow/react";
 import { decideFollowBranch, followCheckVariable, type FollowBranch } from "./follow-branch";
 import { normalizeFlowNodes } from "./normalize-nodes";
+import { handleMatches } from "./branch-handle";
 
 // --- Types ---
 
@@ -521,7 +522,7 @@ export function simulateFlow(
     let nextEdge: Edge | undefined;
     if (nextHandle) {
       nextEdge = edges.find(
-        (e) => e.source === node.id && e.sourceHandle === nextHandle
+        (e) => e.source === node.id && handleMatches(e.sourceHandle, nextHandle!)
       );
     }
     if (!nextEdge) {
