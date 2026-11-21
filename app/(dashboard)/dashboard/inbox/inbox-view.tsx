@@ -75,6 +75,15 @@ export function InboxView({
         if (res.ok) {
           const data = await res.json();
           setMessages(data ?? []);
+          // A fresh profile picture found while loading: show it in the open chat now.
+          const avatar = res.headers.get("x-contact-avatar");
+          if (avatar) {
+            setSelected((s) =>
+              s && s.contacts && s.contacts.avatar_url !== avatar
+                ? { ...s, contacts: { ...s.contacts, avatar_url: avatar } }
+                : s
+            );
+          }
         } else {
           console.error("Failed to load messages:", res.status);
           setMessages([]);

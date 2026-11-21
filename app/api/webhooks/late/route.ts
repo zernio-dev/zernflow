@@ -215,7 +215,7 @@ async function processMessageEvent(
     channel,
     senderId,
     senderName,
-    senderPicture: msg.sender.picture || null,
+    senderPicture: msg.sender.picture || conv.participantPicture || null,
     senderUsername: msg.sender.username || null,
     interactionAt: new Date().toISOString(),
   });

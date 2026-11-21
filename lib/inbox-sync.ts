@@ -69,11 +69,14 @@ export async function upsertContactForSender({
     .single();
 
   if (existingContactChannel) {
-    if (stampExisting) {
-      await supabase
-        .from("contacts")
-        .update({ last_interaction_at: interactionAt })
-        .eq("id", existingContactChannel.contact_id);
+    // Keep the picture current: it was only ever saved on the first contact insert, but
+    // Instagram often has no picture then and its picture links expire after a few days.
+    const update = {
+      ...(stampExisting ? { last_interaction_at: interactionAt } : {}),
+      ...(senderPicture ? { avatar_url: senderPicture } : {}),
+    };
+    if (Object.keys(update).length > 0) {
+      await supabase.from("contacts").update(update).eq("id", existingContactChannel.contact_id);
     }
     return { contactId: existingContactChannel.contact_id, existed: true };
   }
