@@ -21,6 +21,7 @@ import { executeAiResponse } from "./nodes/ai-response";
 import { adaptMessage } from "./platform-adapter";
 import { createZernioClient } from "@/lib/zernio-client";
 import { requestPublicUrl } from "./request-public-url";
+import { handleMatches } from "./branch-handle";
 
 export async function executeFlow(
   supabase: SupabaseClient<Database>,
@@ -305,7 +306,7 @@ async function traverseNodes(
     // Condition/split nodes specify which handle to follow
     const handle = result.replace("handle:", "");
     nextEdge = edges.find(
-      (e) => e.source === node.id && e.sourceHandle === handle
+      (e) => e.source === node.id && handleMatches(e.sourceHandle, handle)
     );
   } else {
     nextEdge = edges.find((e) => e.source === node.id);
