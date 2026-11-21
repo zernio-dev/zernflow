@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { PlatformIcon } from "@/components/platform-icon";
+import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import type { Database, Platform } from "@/lib/types/database";
 
 type Contact = Database["public"]["Tables"]["contacts"]["Row"];
@@ -134,17 +135,11 @@ export function ContactPanel({
         <div className="flex-1 overflow-y-auto">
           {/* Profile section */}
           <div className="flex flex-col items-center border-b border-border p-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-xl font-semibold">
-              {details.contact.avatar_url ? (
-                <img
-                  src={details.contact.avatar_url}
-                  alt=""
-                  className="h-16 w-16 rounded-full object-cover"
-                />
-              ) : (
-                details.contact.display_name?.[0]?.toUpperCase() ?? "?"
-              )}
-            </div>
+            <ContactAvatar
+              name={details.contact.display_name}
+              src={details.contact.avatar_url}
+              className="h-16 w-16 text-xl"
+            />
             <p className="mt-3 text-sm font-semibold">
               {details.contact.display_name ?? "Unknown"}
             </p>
