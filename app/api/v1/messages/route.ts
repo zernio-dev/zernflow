@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createZernioClient } from "@/lib/zernio-client";
 import { messagePreview } from "@/lib/message-preview";
+import { mapZernioMessage } from "@/lib/inbox-messages";
 
 /**
  * GET /api/v1/messages?conversationId=...
@@ -61,22 +62,7 @@ export async function GET(request: NextRequest) {
       [];
 
     // Map Zernio messages to the shape the inbox UI expects
-    const messages = zernioMessages.map((m: any) => ({
-      id: m.id,
-      conversation_id: conversationId,
-      direction: m.direction === "outbound" ? "outbound" : "inbound",
-      text: m.text ?? m.message ?? null,
-      attachments: m.attachments?.length ? m.attachments : null,
-      quick_reply_payload: null,
-      postback_payload: null,
-      callback_data: null,
-      platform_message_id: m.platformMessageId ?? null,
-      sent_by_flow_id: null,
-      sent_by_node_id: null,
-      sent_by_user_id: null,
-      status: "sent",
-      created_at: m.sentAt ?? m.createdAt ?? new Date().toISOString(),
-    }));
+    const messages = zernioMessages.map((m) => mapZernioMessage(m as Parameters<typeof mapZernioMessage>[0], conversationId));
 
     return NextResponse.json(messages);
   } catch (error) {
