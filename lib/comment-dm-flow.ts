@@ -144,7 +144,7 @@ export function buildCommentDmFlow(c: CommentDmConfig) {
       { id: "e-check-retry", source: "check", sourceHandle: "notFollowed", target: "retry" },
       { id: "e-check-giveup", source: "check", sourceHandle: "gaveUp", target: "giveup" },
       // The loop: after the reminder, wait for the next tap and check again.
-      { id: "e-retry-wait", source: "retry", target: "wait" },
+      { id: "e-retry-wait", source: "retry", target: "wait", label: "waits for the next tap" },
     ],
   };
 }

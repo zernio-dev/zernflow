@@ -69,7 +69,7 @@ export function ReelPicker({
             }}
             className={cn(
               "rounded-lg border p-3 text-left transition-colors",
-              mode === key ? "border-primary bg-primary/5" : "border-border hover:bg-accent"
+              mode === key ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:bg-accent"
             )}
           >
             <p className="text-sm font-medium">{title}</p>
