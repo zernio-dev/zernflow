@@ -385,10 +385,8 @@ async function sendFirstMessageAsPrivateReply(
   const first = data.messages[0];
   if (!first) return;
 
-  const text = interpolateVariables(
-    adaptMessage(first, context.platform ?? "instagram").text,
-    context.variables || {}
-  );
+  const adapted = adaptMessage(first, context.platform ?? "instagram");
+  const text = interpolateVariables(adapted.text, context.variables || {});
 
   try {
     await zernio.comments.sendPrivateReplyToComment({
@@ -396,7 +394,13 @@ async function sendFirstMessageAsPrivateReply(
         postId: String(context.variables!.post_id),
         commentId: String(context.variables!.comment_id),
       },
-      body: { accountId: lateAccountId, message: text },
+      // Keep the buttons and quick replies: a follow gate needs a "I followed" tap on this first DM.
+      body: {
+        accountId: lateAccountId,
+        message: text,
+        ...(adapted.quickReplies?.length ? { quickReplies: adapted.quickReplies } : {}),
+        ...(adapted.buttons?.length ? { buttons: adapted.buttons } : {}),
+      } as Parameters<typeof zernio.comments.sendPrivateReplyToComment>[0]["body"],
     });
 
     await supabase.from("messages").insert({
