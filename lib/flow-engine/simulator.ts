@@ -6,6 +6,7 @@
 
 import type { Node, Edge } from "@xyflow/react";
 import { decideFollowBranch, followCheckVariable, type FollowBranch } from "./follow-branch";
+import { normalizeFlowNodes } from "./normalize-nodes";
 
 // --- Types ---
 
@@ -120,6 +121,8 @@ export function simulateFlow(
   edges: Edge[],
   config: SimulationConfig
 ): SimulationResult {
+  // Palette actions are stored as type "action"; test them as the engine will run them.
+  nodes = normalizeFlowNodes(nodes);
   const steps: SimulationStep[] = [];
   const errors: string[] = [];
   const variables: Record<string, string> = {
@@ -147,7 +150,8 @@ export function simulateFlow(
     .filter((k) => k.length > 0);
   let triggerMatched = false;
 
-  if (triggerType === "keyword") {
+  // A comment flow is tested by typing the comment, so it matches the same way a DM keyword does.
+  if (triggerType === "keyword" || triggerType === "comment_keyword") {
     const msg = config.incomingMessage.toLowerCase();
     triggerMatched =
       keywords.length === 0 ||
